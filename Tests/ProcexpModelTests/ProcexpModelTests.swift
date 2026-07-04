@@ -1,17 +1,9 @@
 import Testing
+import Foundation
 @testable import ProcexpModel
 
 @Suite("ProcexpModel W0 contracts")
 struct ProcexpModelTests {
-
-    @Test("Mock seeds a large realistic tree with launchd at the root")
-    func mockProducesLargeTree() async {
-        let provider = MockDataProvider()
-        let snap = await provider.snapshot()
-        #expect(snap.processes.count >= 140)
-        #expect(!snap.roots.isEmpty)
-        #expect(snap.roots.contains { $0.pid == 1 })
-    }
 
     @Test("Tree builder computes roots and children, promoting orphans")
     func treeBuilderRootsAndChildren() {
@@ -29,14 +21,37 @@ struct ProcexpModelTests {
         #expect(children[root] == [child])
     }
 
-    @Test("World evolves between consecutive snapshots")
-    func snapshotDiffDetectsChange() async {
-        let provider = MockDataProvider(seed: 42)
-        let a = await provider.snapshot()
-        var b = a
-        for await snap in provider.snapshots(interval: 0.0) { b = snap; break }
-        let diff = SnapshotDiff.between(a, b)
-        #expect(diff.added.count + diff.changed.count > 0)
+    @Test("Snapshot diff detects added removed and changed records")
+    func snapshotDiffDetectsChange() {
+        let id1 = ProcessID(pid: 1, startTime: 10)
+        let id2 = ProcessID(pid: 2, startTime: 20)
+        let id3 = ProcessID(pid: 3, startTime: 30)
+        let old = ProcessSnapshot(
+            timestamp: .distantPast,
+            interval: 1,
+            processes: [
+                id1: ProcessRecord(id: id1, name: "one", cpuPercent: 1),
+                id2: ProcessRecord(id: id2, name: "two"),
+            ],
+            roots: [id1, id2],
+            children: [:],
+            system: .zero
+        )
+        let new = ProcessSnapshot(
+            timestamp: Date(),
+            interval: 1,
+            processes: [
+                id1: ProcessRecord(id: id1, name: "one", cpuPercent: 2),
+                id3: ProcessRecord(id: id3, name: "three"),
+            ],
+            roots: [id1, id3],
+            children: [:],
+            system: .zero
+        )
+        let diff = SnapshotDiff.between(old, new)
+        #expect(diff.added == [id3])
+        #expect(diff.removed == [id2])
+        #expect(diff.changed == [id1])
     }
 
     @Test("History ring keeps the newest N samples oldest-first")
@@ -64,6 +79,19 @@ struct ProcexpModelTests {
         #expect(Column.cpu.string(for: p) == "12.50")
         #expect(Column.threads.string(for: p) == "8")
         #expect(Column.cpu.sortValue(for: p) == .number(12.5))
+    }
+
+    @Test("Unsupported macOS columns are excluded from selectable columns")
+    func unsupportedColumnsExcluded() {
+        let unsupported: Set<Column> = [.network, .gpu, .gpuMemory, .integrity]
+        #expect(unsupported.isDisjoint(with: Set(Column.supportedOnMac)))
+        #expect(Column.supportedOnMac.contains(.commandLine))
+    }
+
+    @Test("PID is a pinned process-list column")
+    func pidColumnIsPinned() {
+        #expect(Column.pinnedOnMac == [.name, .pid])
+        #expect(Column.supportedOnMac.contains(.pid))
     }
 
     @Test("New/dead colors take priority over own-process color")

@@ -8,16 +8,16 @@ Every brief must include this preamble:
 > You are building part of **Process Explorer for macOS** (native Swift port of Sysinternals
 > Process Explorer). Read [docs/IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) and
 > [docs/DATA_CONTRACTS.md](DATA_CONTRACTS.md) first. Build **only** against the contracts in
-> `ProcexpModel`. Do not modify shared contracts without flagging it. Ship unit tests and a
-> SwiftUI preview driven by `MockDataProvider`. Target macOS 13+, Swift 5.9+.
+> `ProcexpModel`. Do not modify shared contracts without flagging it. Ship unit tests and
+> graceful unavailable-state handling. Target macOS 13+, Swift 5.9+.
 
 ---
 
 ## Phase 0 — dispatch alone
 
-- **W0 — ProcexpModel**: Implement all types, protocols, and `MockDataProvider` from
-  DATA_CONTRACTS.md. Deliverable: a Swift package that compiles, is `Sendable`-clean, has
-  tests proving the mock emits an animatable ~150-node tree with spawn/kill events.
+- **W0 — ProcexpModel**: Implement all types and protocols from DATA_CONTRACTS.md.
+  Deliverable: a Swift package that compiles, is `Sendable`-clean, and has tests covering
+  identity, snapshot diffing, tree building, formatting, and color priority.
 
 ## Phase 1 — dispatch concurrently (all depend only on W0)
 
@@ -54,6 +54,6 @@ Every brief must include this preamble:
 ## Definition of done (every workstream)
 
 1. Compiles in the Xcode project and as a standalone package. 2. Unit tests pass.
-3. SwiftUI preview / demo runs on `MockDataProvider`. 4. No main-thread blocking; no leaks
+3. No fake/demo data paths in production UI. 4. No main-thread blocking; no leaks
 (Instruments-clean). 5. Public API documented. 6. Graceful degradation when a capability or
 the helper is unavailable.

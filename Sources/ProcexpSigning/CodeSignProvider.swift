@@ -48,7 +48,12 @@ public final class CodeSignProvider: SigningProviding {
         guard createStatus == errSecSuccess, let code = staticCode else {
             // Could not even form a static code object → treat as invalid, but
             // still return the hash so reputation checks remain possible.
-            return SignatureInfo(status: .invalid, sha256: sha)
+            return SignatureInfo(
+                status: .invalid,
+                sha256: sha,
+                validationErrorCode: createStatus,
+                validationErrorMessage: Self.securityMessage(for: createStatus)
+            )
         }
 
         // 1) Validity → SigningStatus.
@@ -114,7 +119,9 @@ public final class CodeSignProvider: SigningProviding {
             isPlatformBinary: isPlatform,
             isAdHoc: isAdHoc,
             sha256: sha,
-            virusTotal: nil)
+            virusTotal: nil,
+            validationErrorCode: checkStatus == errSecSuccess ? nil : checkStatus,
+            validationErrorMessage: checkStatus == errSecSuccess ? nil : Self.securityMessage(for: checkStatus))
     }
 
     public func virusTotal(sha256: String) async throws -> VirusTotalResult? {
@@ -149,6 +156,13 @@ public final class CodeSignProvider: SigningProviding {
     static func isSystemPath(_ path: String) -> Bool {
         let prefixes = ["/System/", "/usr/", "/bin/", "/sbin/"]
         return prefixes.contains { path.hasPrefix($0) }
+    }
+
+    private static func securityMessage(for status: OSStatus) -> String {
+        if let message = SecCopyErrorMessageString(status, nil) as String? {
+            return message
+        }
+        return "Security.framework status \(status)"
     }
 
     /// Best-effort notarization signal.

@@ -25,6 +25,7 @@ public struct ProcessRecordDTO: Codable, Sendable {
     public var imageType: ImageType
     public var uid: UInt32
     public var userName: String?
+    public var commandLine: String?
     public var cpuPercent: Double
     public var cpuTime: UInt64
     public var threadCount: Int
@@ -50,6 +51,7 @@ public struct ProcessRecordDTO: Codable, Sendable {
         imageType = r.imageType
         uid = r.uid
         userName = r.userName
+        commandLine = r.commandLine
         cpuPercent = r.cpuPercent
         cpuTime = r.cpuTime
         threadCount = r.threadCount
@@ -77,6 +79,7 @@ public struct ProcessRecordDTO: Codable, Sendable {
             imageType: imageType,
             uid: uid,
             userName: userName,
+            commandLine: commandLine,
             cpuPercent: cpuPercent,
             cpuTime: cpuTime,
             threadCount: threadCount,

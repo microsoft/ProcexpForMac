@@ -63,6 +63,9 @@ public struct ProcessFlags: OptionSet, Sendable, Codable, Hashable {
     public static let newProcess     = ProcessFlags(rawValue: 1 << 6)
     /// Disappeared since the previous snapshot (red fade).
     public static let deadProcess    = ProcessFlags(rawValue: 1 << 7)
+    /// Kernel task information was unavailable, usually because macOS denied
+    /// access to a protected or other-user process.
+    public static let limitedTaskInfo = ProcessFlags(rawValue: 1 << 8)
 }
 
 /// One process sampled at one instant. Immutable snapshot element.
@@ -84,6 +87,7 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
     public var displayDescription: String?
     public var companyName: String?
     public var version: String?
+    public var commandLine: String?
 
     // CPU
     /// Instantaneous CPU usage. Normalized so that 100.0 == one fully-busy core.
@@ -136,6 +140,7 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
         displayDescription: String? = nil,
         companyName: String? = nil,
         version: String? = nil,
+        commandLine: String? = nil,
         cpuPercent: Double = 0,
         cpuTime: UInt64 = 0,
         threadCount: Int = 0,
@@ -169,6 +174,7 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
         self.displayDescription = displayDescription
         self.companyName = companyName
         self.version = version
+        self.commandLine = commandLine
         self.cpuPercent = cpuPercent
         self.cpuTime = cpuTime
         self.threadCount = threadCount

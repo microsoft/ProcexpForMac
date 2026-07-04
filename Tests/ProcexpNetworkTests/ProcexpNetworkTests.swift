@@ -1,5 +1,6 @@
 import Testing
 import Darwin
+import Foundation
 import ProcexpModel
 @testable import ProcexpNetwork
 
@@ -58,6 +59,33 @@ struct ProcexpNetworkTests {
         })
     }
 
+    @Test("Finds TCP connections held open by the external fixture app")
+    func findsExternalFixtureConnections() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let pidText = environment["PROCEXPMAC_TCP_FIXTURE_PID"],
+              let portText = environment["PROCEXPMAC_TCP_FIXTURE_PORT"] else {
+            return
+        }
+        guard let pid = Int32(pidText), let port = UInt16(portText) else {
+            #expect(Bool(false))
+            return
+        }
+
+        let provider = NetworkProvider()
+        var sockets: [SocketInfo] = []
+        for _ in 0..<20 {
+            sockets = try await provider.sockets(of: ProcessID(pid: pid, startTime: 0))
+            if hasFixtureListenSocket(sockets, port: port)
+                && hasFixtureEstablishedSocket(sockets, port: port) {
+                break
+            }
+            try await Task.sleep(nanoseconds: 250_000_000)
+        }
+
+        #expect(hasFixtureListenSocket(sockets, port: port))
+        #expect(hasFixtureEstablishedSocket(sockets, port: port))
+    }
+
     @Test("Network rates are intentionally empty on macOS")
     func networkRatesEmpty() async {
         let rates = await NetworkProvider().networkRates()
@@ -68,5 +96,22 @@ struct ProcexpNetworkTests {
     func gpuQuery() async {
         let pct = await GPUStatsProvider().systemGPUPercent()
         if let pct { #expect(pct >= 0 && pct <= 100) }
+    }
+
+    private func hasFixtureListenSocket(_ sockets: [SocketInfo], port: UInt16) -> Bool {
+        sockets.contains { socket in
+            socket.proto == .tcp4
+                && socket.localAddress == "127.0.0.1"
+                && socket.localPort == port
+                && socket.state == "LISTEN"
+        }
+    }
+
+    private func hasFixtureEstablishedSocket(_ sockets: [SocketInfo], port: UInt16) -> Bool {
+        sockets.contains { socket in
+            socket.proto == .tcp4
+                && (socket.localPort == port || socket.remotePort == port)
+                && socket.state == "ESTABLISHED"
+        }
     }
 }

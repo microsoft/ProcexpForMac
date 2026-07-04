@@ -30,10 +30,12 @@
 		8E2D69764F702B12F4875AC2 /* ActionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC1CA38D9D44295D6C8D45AA /* ActionCoordinator.swift */; };
 		91A42F0EBD69B82C711794FF /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 958DC889CA7C5F6D0864E2CC /* SettingsStore.swift */; };
 		971AF9AE024E9D663FFF50FE /* MainWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ACD2ED5DDB1FB04A54BEAD8 /* MainWindowView.swift */; };
+		9D4D5C290B9A4C2F7BED9033 /* ProcessSampleAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6739E51CED781630200B4DC5 /* ProcessSampleAction.swift */; };
 		A5B9E71D78622EC6CC66D65F /* ProcexpApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F5D04369E1786B4002E861 /* ProcexpApp.swift */; };
 		A784D268FFC7D65ACB2C3328 /* SystemInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB9628C9809ACBDBD67EDB59 /* SystemInfoView.swift */; };
 		A7E8E0D8CA1FF45FC2C2DC52 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B22F8FD76F24B30E44E2125 /* ContentView.swift */; };
 		A96A1EEF196364F0CCEC6A3D /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E45694445F4562413DA969 /* AppModel.swift */; };
+		ACCF5C2440D10B534587280C /* ColumnManagementViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F3311EFBB1A72E195A60DE /* ColumnManagementViews.swift */; };
 		B426BE9ADD7F8DEB4D8E912E /* HardwareInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92B8C0D94D141ABAB70A71EB /* HardwareInfo.swift */; };
 		BC488934F81C1EE1235C027A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B14E5FC9442AD87244D49463 /* Assets.xcassets */; };
 		C19339078A35FE74E2902A80 /* FindHandleDLLView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3D5AA97FD42E385C538B8D /* FindHandleDLLView.swift */; };
@@ -56,12 +58,14 @@
 		4ACD2ED5DDB1FB04A54BEAD8 /* MainWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowView.swift; sourceTree = "<group>"; };
 		4C68781407FEE7BA7E907A50 /* ProcessOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessOutlineView.swift; sourceTree = "<group>"; };
 		54F5D04369E1786B4002E861 /* ProcexpApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcexpApp.swift; sourceTree = "<group>"; };
+		6739E51CED781630200B4DC5 /* ProcessSampleAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessSampleAction.swift; sourceTree = "<group>"; };
 		6D61055208CF97D8CC5C35F3 /* LowerPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LowerPaneView.swift; sourceTree = "<group>"; };
 		6F56D45DD790B0490B9EC284 /* ModuleDetailWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleDetailWindow.swift; sourceTree = "<group>"; };
 		7C462D79EF7A5A7D75C07744 /* ProcexpMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ProcexpMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		92B8C0D94D141ABAB70A71EB /* HardwareInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareInfo.swift; sourceTree = "<group>"; };
 		958DC889CA7C5F6D0864E2CC /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		96544DD01C1132F21A86E482 /* AppMenus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMenus.swift; sourceTree = "<group>"; };
+		A5F3311EFBB1A72E195A60DE /* ColumnManagementViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColumnManagementViews.swift; sourceTree = "<group>"; };
 		B14E5FC9442AD87244D49463 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C50A39FD8344D5108A84C1A8 /* PropertiesDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertiesDetail.swift; sourceTree = "<group>"; };
 		E4E45694445F4562413DA969 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
@@ -176,6 +180,7 @@
 			isa = PBXGroup;
 			children = (
 				2298E34CD146F2B6E7052CAF /* Color+RGBA.swift */,
+				A5F3311EFBB1A72E195A60DE /* ColumnManagementViews.swift */,
 				958DC889CA7C5F6D0864E2CC /* SettingsStore.swift */,
 				194AC9666EB23DBC2A417B9A /* SettingsView.swift */,
 			);
@@ -186,6 +191,7 @@
 			isa = PBXGroup;
 			children = (
 				FC1CA38D9D44295D6C8D45AA /* ActionCoordinator.swift */,
+				6739E51CED781630200B4DC5 /* ProcessSampleAction.swift */,
 			);
 			path = Actions;
 			sourceTree = "<group>";
@@ -310,6 +316,7 @@
 				A96A1EEF196364F0CCEC6A3D /* AppModel.swift in Sources */,
 				1E9917DD903F74F0BCB27F4B /* BorderlessGridTableView.swift in Sources */,
 				1A4F27678F64C3D76D9D775C /* Color+RGBA.swift in Sources */,
+				ACCF5C2440D10B534587280C /* ColumnManagementViews.swift in Sources */,
 				A7E8E0D8CA1FF45FC2C2DC52 /* ContentView.swift in Sources */,
 				C19339078A35FE74E2902A80 /* FindHandleDLLView.swift in Sources */,
 				089E906EB8ED83DB143D2CF7 /* HandleDetailWindow.swift in Sources */,
@@ -320,6 +327,7 @@
 				51FEE6302C1158FBF3710405 /* ModuleDetailWindow.swift in Sources */,
 				5450EC0AECB1E98166E56CA5 /* ProcessOutlineView.swift in Sources */,
 				D02E7A7F34617C12F17FF72F /* ProcessPropertiesView.swift in Sources */,
+				9D4D5C290B9A4C2F7BED9033 /* ProcessSampleAction.swift in Sources */,
 				A5B9E71D78622EC6CC66D65F /* ProcexpApp.swift in Sources */,
 				1EC4486198C20CAFEA1A0FE1 /* PropertiesDetail.swift in Sources */,
 				43FEAD8E720BB4475D31BE4C /* PropertiesTabs.swift in Sources */,

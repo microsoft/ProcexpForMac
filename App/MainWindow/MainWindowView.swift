@@ -29,6 +29,11 @@ struct MainWindowView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .zIndex(1)
 
+            if model.targetWindowPickerActive {
+                targetPickerBanner
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
             Divider()
             if model.showLowerPane {
                 VSplitView {
@@ -48,6 +53,21 @@ struct MainWindowView: View {
         .sheet(isPresented: $model.showRunSheet) {
             RunProcessSheet()
         }
+        .sheet(isPresented: $model.showSelectColumnsSheet) {
+            SelectColumnsSheet()
+                .environment(model)
+        }
+        .sheet(isPresented: $model.showSaveColumnSetSheet) {
+            SaveColumnSetSheet()
+                .environment(model)
+        }
+        .sheet(isPresented: $model.showOrganizeColumnSetsSheet) {
+            OrganizeColumnSetsSheet()
+                .environment(model)
+        }
+        .background(SpacePauseMonitor {
+            model.togglePause()
+        })
         .onChange(of: model.focusSearchToken) {
             searchFocused = true
         }
@@ -83,6 +103,33 @@ struct MainWindowView: View {
         } message: {
             Text(coordinator.errorMessage ?? "")
         }
+        .alert(
+            model.targetWindowPickerAlert?.title ?? "Window Picker",
+            isPresented: Binding(
+                get: { model.targetWindowPickerAlert != nil },
+                set: { if !$0 { model.targetWindowPickerAlert = nil } }
+            )
+        ) {
+            if model.targetWindowPickerAlert?.offersAccessibilitySettings == true {
+                Button("Open Accessibility Settings") {
+                    model.openAccessibilitySettingsForTargetPicker()
+                }
+            }
+            Button("OK", role: .cancel) { model.targetWindowPickerAlert = nil }
+        } message: {
+            Text(model.targetWindowPickerAlert?.message ?? "")
+        }
+        .alert(
+            model.processActionAlert?.title ?? "Process Action",
+            isPresented: Binding(
+                get: { model.processActionAlert != nil },
+                set: { if !$0 { model.processActionAlert = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) { model.processActionAlert = nil }
+        } message: {
+            Text(model.processActionAlert?.message ?? "")
+        }
     }
 
     /// The process tree, shared between the split and non-split layouts.
@@ -116,6 +163,7 @@ struct MainWindowView: View {
             toolbarDivider
 
             iconButton("sysinfo", tip: "System Information — live graphs (⌘I)") {
+                model.systemInfoTab = .summary
                 openWindow(id: SystemInfoWindow.id)
             }
 
@@ -148,6 +196,10 @@ struct MainWindowView: View {
             iconButton("find", tip: "Find Handle or DLL… (⌘F)") {
                 openWindow(id: FindHandleDLLWindow.id)
             }
+            iconToggle("target", isOn: model.targetWindowPickerActive,
+                       tip: "Find Window's Process") {
+                model.toggleTargetWindowPicker()
+            }
 
             toolbarDivider
 
@@ -157,17 +209,20 @@ struct MainWindowView: View {
                            values: model.cpuHistory.values,
                            maxValue: 100,
                            color: RGBA(0, 200, 0),
-                           tip: cpuTip)
+                           tip: cpuTip,
+                           systemInfoTab: .cpu)
             resizableGraph(index: 1,
                            values: model.memoryHistory.values,
                            maxValue: 100,
                            color: RGBA(230, 120, 40),
-                           tip: memTip)
+                           tip: memTip,
+                           systemInfoTab: .memory)
             resizableGraph(index: 2,
                            values: model.ioHistory.values,
                            maxValue: max(1, model.ioHistory.values.max() ?? 1),
                            color: RGBA(70, 140, 240),
-                           tip: ioTip)
+                           tip: ioTip,
+                           systemInfoTab: .io)
 
             Spacer(minLength: 8)
 
@@ -184,6 +239,29 @@ struct MainWindowView: View {
 
     private var toolbarDivider: some View {
         Divider().frame(height: 20)
+    }
+
+    private var targetPickerBanner: some View {
+        HStack(spacing: 8) {
+            Image("target")
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 18, height: 18)
+            Text("Click another app's window to select its owning process. Press Esc or click in Process Explorer to cancel.")
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 8)
+        }
+        .font(.system(size: 12))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.accentColor.opacity(0.12))
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.accentColor.opacity(0.35))
+                .frame(height: 1)
+        }
     }
 
     /// A plain colored-icon toolbar button.
@@ -228,7 +306,8 @@ struct MainWindowView: View {
                                 values: [Double],
                                 maxValue: Double,
                                 color: RGBA,
-                                tip: String) -> some View {
+                                tip: String,
+                                systemInfoTab: SystemInfoTab) -> some View {
         @Bindable var model = model
         return ResizableMiniGraph(
             width: $model.graphWidths[index],
@@ -236,7 +315,10 @@ struct MainWindowView: View {
             maxValue: maxValue,
             color: color,
             tip: tip,
-            action: { openWindow(id: SystemInfoWindow.id) }
+            action: {
+                model.systemInfoTab = systemInfoTab
+                openWindow(id: SystemInfoWindow.id)
+            }
         )
     }
 
@@ -314,6 +396,12 @@ struct MainWindowView: View {
             coordinator.request(.bringToFront, pid: pid, model: model)
         case .restart:
             coordinator.request(.restart, pid: pid, model: model)
+        case .sample:
+            model.sampleProcess(pid)
+        case .searchOnline:
+            model.searchOnline(forProcess: pid)
+        case .checkVirusTotal:
+            Task { await model.checkVirusTotal(forProcess: pid) }
         case .copy:
             copyToPasteboard(pid)
         }
@@ -394,6 +482,63 @@ struct MainWindowView: View {
         guard system.memoryTotal > 0 else { return "—" }
         let pct = Double(system.memoryUsed) / Double(system.memoryTotal) * 100
         return String(format: "%.0f%%", pct)
+    }
+}
+
+private struct SpacePauseMonitor: NSViewRepresentable {
+    var action: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView(frame: .zero)
+        context.coordinator.attach(to: view)
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        context.coordinator.action = action
+        context.coordinator.attach(to: view)
+    }
+
+    final class Coordinator {
+        var action: () -> Void
+        private weak var view: NSView?
+        private var monitor: Any?
+
+        init(action: @escaping () -> Void) {
+            self.action = action
+        }
+
+        deinit {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+        }
+
+        func attach(to view: NSView) {
+            self.view = view
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self,
+                      event.window === self.view?.window,
+                      event.keyCode == 49,
+                      event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
+                      !Self.isTextInput(event.window?.firstResponder)
+                else { return event }
+                self.action()
+                return nil
+            }
+        }
+
+        private static func isTextInput(_ responder: Any?) -> Bool {
+            var current = responder as? NSResponder
+            while let item = current {
+                if item is NSTextView || item is NSTextField { return true }
+                current = item.nextResponder
+            }
+            return false
+        }
     }
 }
 

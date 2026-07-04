@@ -7,6 +7,7 @@
 import Foundation
 import Observation
 import AppKit
+import ApplicationServices
 import ProcexpModel
 import ProcexpSampling
 import ProcexpSigning
@@ -16,9 +17,42 @@ import ProcexpAutostart
 import ProcexpActions
 import ProcexpPrivileged
 
+struct ColumnSet: Codable, Equatable, Identifiable, Sendable {
+    var name: String
+    var columns: [Column]
+    var processColumnWidth: Double
+    var columnWidths: [String: Double]
+
+    var id: String { name }
+}
+
+struct TargetWindowPickerAlert: Identifiable {
+    let id = UUID()
+    var title: String
+    var message: String
+    var offersAccessibilitySettings: Bool = false
+}
+
+struct ProcessActionAlert: Identifiable {
+    let id = UUID()
+    var title: String
+    var message: String
+}
+
+enum SystemInfoTab: Hashable {
+    case summary
+    case cpu
+    case memory
+    case io
+    case network
+    case gpu
+}
+
 @MainActor
 @Observable
 final class AppModel {
+    static let defaultProcessColumnWidth: Double = 430
+
     // Latest sampled state.
     var snapshot: ProcessSnapshot = .empty
     var selection: ProcessID?
@@ -26,11 +60,22 @@ final class AppModel {
     // View configuration. `didSet` observers persist changes (W11) once the
     // stored settings have finished loading at launch.
     var refreshInterval: TimeInterval = 1.0 { didSet { persistSettings() } }
-    var columns: [Column] = Column.defaultColumns { didSet { persistSettings() } }
-    var processColumnWidth: Double = 430 { didSet { persistSettings() } }
+    var columns: [Column] = Column.defaultColumns {
+        didSet {
+            guard !normalizingColumns else { return }
+            let normalized = Self.normalizedColumns(columns)
+            if normalized != columns {
+                normalizingColumns = true
+                columns = normalized
+                normalizingColumns = false
+            }
+            persistSettings()
+        }
+    }
+    var processColumnWidth: Double = AppModel.defaultProcessColumnWidth { didSet { persistSettings() } }
     var columnWidths: [String: Double] = [:] { didSet { persistSettings() } }
+    var columnSets: [ColumnSet] = [] { didSet { persistSettings() } }
     var colorRules: [ProcessColorRule] = ProcessColorRule.defaults { didSet { persistSettings() } }
-    var useMockData: Bool = false { didSet { persistSettings() } }
 
     // W11 preference toggles.
     var confirmBeforeKill: Bool = true { didSet { persistSettings() } }
@@ -40,10 +85,12 @@ final class AppModel {
     /// Gate so restoring persisted settings at launch doesn't immediately
     /// re-save them (and so `init` assignments are never persisted early).
     private var settingsLoaded = false
+    private var normalizingColumns = false
 
     // W5 lower-pane view state (mapped images vs. file descriptors).
     var showLowerPane: Bool = true
     var lowerPaneMode: LowerPaneMode = .modules
+    var systemInfoTab: SystemInfoTab = .summary
 
     // R1 — show the process hierarchy (tree) vs. a flat list of all processes
     // (Procexp "View ▸ Show Process Tree", ⌘T).
@@ -61,10 +108,26 @@ final class AppModel {
     // R1 — UI intents raised by menu commands and observed by the main window.
     /// Presents the "Run…" launcher sheet (File ▸ Run…, ⌘R).
     var showRunSheet: Bool = false
+    /// Presents View ▸ Select Columns….
+    var showSelectColumnsSheet: Bool = false
+    /// Presents View ▸ Save Column Set….
+    var showSaveColumnSetSheet: Bool = false
+    /// Presents View ▸ Organize Column Sets….
+    var showOrganizeColumnSetsSheet: Bool = false
     /// Bumped to request focus of the filter field (Find ▸ Filter Processes, ⇧⌘F).
     var focusSearchToken: Int = 0
     /// Bumped to request saving the process list (File ▸ Save, ⌘S).
     var saveRequestToken: Int = 0
+
+    // Target-window picker state. The toolbar starts a one-click global pick;
+    // success writes `selection`, so the existing process-list selection path
+    // remains the only owner of row highlighting and lower-pane follow mode.
+    var targetWindowPickerActive: Bool = false
+    var targetWindowPickerAlert: TargetWindowPickerAlert?
+    var processActionAlert: ProcessActionAlert?
+    private var targetWindowGlobalMonitor: Any?
+    private var targetWindowLocalMonitor: Any?
+    private var targetWindowCursorPushed = false
 
     // W10 — show the live CPU-history icon in the macOS menu bar.
     var showMenuBarGraph: Bool = true
@@ -80,6 +143,7 @@ final class AppModel {
     var theme: AppTheme = .system { didSet { applyTheme() } }
 
     // System history rings for graphs (newest last).
+    var systemHistoryTimestamps = HistoryRing<Date>(capacity: 120)
     var cpuHistory = HistoryRing<Double>(capacity: 120)
     var memoryHistory = HistoryRing<Double>(capacity: 120)
 
@@ -122,6 +186,7 @@ final class AppModel {
 
     /// The always-available unprivileged provider, kept for fallback.
     private let libproc: LibprocDataProvider
+    private let gpuStats = GPUStatsProvider()
 
     /// W8 process-control command layer. Carries the privileged helper (when
     /// installed) so actions on other users' processes can escalate.
@@ -140,6 +205,11 @@ final class AppModel {
     private var signatureInFlight: Set<String> = []
     private let maxConcurrentSignatureLookups = 8
     private let maxNewSignatureLookupsPerRefresh = 12
+
+    private var commandLineCache: [ProcessID: String] = [:]
+    private var commandLineInFlight: Set<ProcessID> = []
+    private let maxConcurrentCommandLineLookups = 16
+    private let maxNewCommandLineLookupsPerRefresh = 32
 
     init() {
         let libproc = LibprocDataProvider()
@@ -211,6 +281,226 @@ final class AppModel {
         SettingsStore.save(from: self)
     }
 
+    static func normalizedColumns(_ columns: [Column]) -> [Column] {
+        var seen = Set(Column.pinnedOnMac)
+        var normalized = Column.pinnedOnMac
+        for column in columns where !seen.contains(column) && column.isSupportedOnMac {
+            seen.insert(column)
+            normalized.append(column)
+        }
+        return normalized
+    }
+
+    static func sanitizedColumnWidths(_ widths: [String: Double]) -> [String: Double] {
+        widths.filter { raw, width in
+            guard let column = Column(rawValue: raw), column != .name else { return false }
+            return column.isSupportedOnMac && width > 0 && width.isFinite
+        }
+    }
+
+    static func normalizedColumnSets(_ sets: [ColumnSet]) -> [ColumnSet] {
+        var usedNames = Set<String>()
+        var normalized: [ColumnSet] = []
+        for set in sets {
+            let name = set.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { continue }
+            let key = name.lowercased()
+            guard !usedNames.contains(key) else { continue }
+            usedNames.insert(key)
+            normalized.append(ColumnSet(
+                name: name,
+                columns: normalizedColumns(set.columns),
+                processColumnWidth: set.processColumnWidth > 0 && set.processColumnWidth.isFinite
+                    ? set.processColumnWidth
+                    : defaultProcessColumnWidth,
+                columnWidths: sanitizedColumnWidths(set.columnWidths)
+            ))
+        }
+        return normalized
+    }
+
+    func applyColumnSet(_ set: ColumnSet) {
+        guard let normalized = Self.normalizedColumnSets([set]).first else { return }
+        columns = normalized.columns
+        processColumnWidth = normalized.processColumnWidth
+        columnWidths = normalized.columnWidths
+    }
+
+    @discardableResult
+    func saveCurrentColumnSet(named name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        let visibleColumns = Self.normalizedColumns(columns)
+        let visibleMetrics = Set(visibleColumns.filter { $0 != .name }.map(\.rawValue))
+        let widths = Self.sanitizedColumnWidths(columnWidths)
+            .filter { visibleMetrics.contains($0.key) }
+        let set = ColumnSet(
+            name: trimmed,
+            columns: visibleColumns,
+            processColumnWidth: processColumnWidth,
+            columnWidths: widths
+        )
+        if let index = columnSets.firstIndex(where: { $0.name.localizedCaseInsensitiveCompare(trimmed) == .orderedSame }) {
+            columnSets[index] = set
+        } else {
+            columnSets.append(set)
+        }
+        columnSets = Self.normalizedColumnSets(columnSets)
+        return true
+    }
+
+    func deleteColumnSet(_ set: ColumnSet) {
+        columnSets.removeAll { $0.name.localizedCaseInsensitiveCompare(set.name) == .orderedSame }
+    }
+
+    func hasColumnSet(named name: String) -> Bool {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        return columnSets.contains { $0.name.localizedCaseInsensitiveCompare(trimmed) == .orderedSame }
+    }
+
+    func defaultColumnSetName() -> String {
+        var index = columnSets.count + 1
+        while hasColumnSet(named: "Column Set \(index)") {
+            index += 1
+        }
+        return "Column Set \(index)"
+    }
+
+    // MARK: - Process / image actions
+
+    func searchOnlineForSelectedProcess() {
+        guard let pid = selection else { return }
+        searchOnline(forProcess: pid)
+    }
+
+    func searchOnline(forProcess pid: ProcessID) {
+        guard let record = snapshot.info(pid) else {
+            processActionAlert = ProcessActionAlert(
+                title: "Process Not Found",
+                message: "The selected process is no longer present in the current snapshot."
+            )
+            return
+        }
+        let query = searchQuery(name: record.name, path: record.executablePath, fallback: "process")
+        openSearchOnline(query: query)
+    }
+
+    func searchOnlineForImage(name: String, path: String) {
+        let query = searchQuery(name: name, path: path, fallback: "image")
+        openSearchOnline(query: query)
+    }
+
+    func checkVirusTotalForSelectedProcess() async {
+        guard let pid = selection else { return }
+        await checkVirusTotal(forProcess: pid)
+    }
+
+    func checkVirusTotal(forProcess pid: ProcessID) async {
+        guard let record = snapshot.info(pid) else {
+            processActionAlert = ProcessActionAlert(
+                title: "Process Not Found",
+                message: "The selected process is no longer present in the current snapshot."
+            )
+            return
+        }
+        guard let path = record.executablePath, !path.isEmpty else {
+            processActionAlert = ProcessActionAlert(
+                title: "VirusTotal Unavailable",
+                message: "No executable path is available for \(record.name)."
+            )
+            return
+        }
+        await checkVirusTotal(displayName: record.name, path: path, signature: record.signing)
+    }
+
+    func checkVirusTotalForImage(name: String, path: String, signature: SignatureInfo? = nil) async {
+        guard !path.isEmpty else {
+            processActionAlert = ProcessActionAlert(
+                title: "VirusTotal Unavailable",
+                message: "No image path is available for \(name)."
+            )
+            return
+        }
+        await checkVirusTotal(displayName: name, path: path, signature: signature)
+    }
+
+    private func searchQuery(name: String, path: String?, fallback: String) -> String {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPath = (path ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedName.isEmpty && !trimmedPath.isEmpty {
+            return "\(trimmedName) \(trimmedPath)"
+        }
+        if !trimmedName.isEmpty { return "\(trimmedName) \(fallback)" }
+        if !trimmedPath.isEmpty { return trimmedPath }
+        return fallback
+    }
+
+    private func openSearchOnline(query: String) {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "duckduckgo.com"
+        components.path = "/"
+        components.queryItems = [URLQueryItem(name: "q", value: query)]
+        guard let url = components.url else {
+            processActionAlert = ProcessActionAlert(
+                title: "Search Online Unavailable",
+                message: "Could not build a search URL for \"\(query)\"."
+            )
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
+
+    private func checkVirusTotal(displayName: String, path: String, signature existingSignature: SignatureInfo?) async {
+        let signature: SignatureInfo
+        if let existingSignature, let sha = existingSignature.sha256, !sha.isEmpty {
+            signature = existingSignature
+        } else {
+            signature = await signing.signature(forPath: path)
+        }
+
+        guard let sha = signature.sha256, !sha.isEmpty else {
+            processActionAlert = ProcessActionAlert(
+                title: "VirusTotal Unavailable",
+                message: "No SHA-256 hash is available for \(displayName). The file may no longer exist or may not be readable."
+            )
+            return
+        }
+
+        do {
+            if let result = try await signing.virusTotal(sha256: sha) {
+                processActionAlert = ProcessActionAlert(
+                    title: "VirusTotal Result",
+                    message: virusTotalMessage(displayName: displayName, result: result)
+                )
+            } else {
+                processActionAlert = ProcessActionAlert(
+                    title: "VirusTotal Result",
+                    message: "No VirusTotal report is available for \(displayName). Configure a VirusTotal API key in the login Keychain, or the file may be unknown to VirusTotal."
+                )
+            }
+        } catch {
+            processActionAlert = ProcessActionAlert(
+                title: "VirusTotal Lookup Failed",
+                message: "VirusTotal lookup failed for \(displayName): \(describe(error))"
+            )
+        }
+    }
+
+    private func virusTotalMessage(displayName: String, result: VirusTotalResult) -> String {
+        var message = "\(displayName): \(result.positives)/\(result.total) engines flagged this file."
+        if let permalink = result.permalink, !permalink.isEmpty {
+            message += "\n\n\(permalink)"
+        }
+        return message
+    }
+
+    private func describe(_ error: Error) -> String {
+        let text = error.localizedDescription
+        return text.isEmpty ? String(describing: error) : text
+    }
+
     /// Begin (or restart) the snapshot stream at the current refresh interval.
     func start() async {
         streamTask?.cancel()
@@ -219,13 +509,15 @@ final class AppModel {
             streamTask = nil
             return
         }
-        let provider: any ProcessDataProviding = useMockData ? MockDataProvider() : data
+        let provider: any ProcessDataProviding = data
         let interval = refreshInterval
         let system = self.system
         streamTask = Task { @MainActor in
             for await snap in provider.snapshots(interval: interval) {
-                self.snapshot = self.enrichWithSignatures(snap)
+                let enriched = self.enrichWithSignatures(self.enrichWithCommandLines(snap))
+                self.snapshot = enriched
                 let stats = await system.stats()
+                self.systemHistoryTimestamps.append(Date())
                 self.cpuHistory.append(stats.cpuTotalPercent)
                 let memPct = stats.memoryTotal > 0
                     ? Double(stats.memoryUsed) / Double(stats.memoryTotal) * 100
@@ -236,7 +528,8 @@ final class AppModel {
                 self.swapHistory.append(Double(stats.swapUsed))
                 self.diskHistory.append(Double(stats.diskBytesPerSec))
                 self.networkHistory.append(Double(stats.networkBytesPerSec))
-                self.gpuHistory.append(stats.gpuPercent ?? 0)
+                let gpuPercent = await self.gpuStats.systemGPUPercent()
+                self.gpuHistory.append(gpuPercent ?? 0)
 
                 // R5 — record the top consumer for each resource this tick.
                 self.appendTopConsumers(for: snap)
@@ -281,16 +574,216 @@ final class AppModel {
     /// disturbing the running stream. Also updates the history rings so the
     /// graphs advance a step.
     func forceRefresh() async {
-        let provider: any ProcessDataProviding = useMockData ? MockDataProvider() : data
+        let provider: any ProcessDataProviding = data
         let snap = await provider.snapshot()
-        self.snapshot = self.enrichWithSignatures(snap)
+        self.snapshot = self.enrichWithSignatures(self.enrichWithCommandLines(snap))
         let stats = await system.stats()
+        systemHistoryTimestamps.append(Date())
         cpuHistory.append(stats.cpuTotalPercent)
         let memPct = stats.memoryTotal > 0
             ? Double(stats.memoryUsed) / Double(stats.memoryTotal) * 100
             : 0
         memoryHistory.append(memPct)
+        let gpuPercent = await gpuStats.systemGPUPercent()
+        gpuHistory.append(gpuPercent ?? 0)
         ioHistory.append(Double(stats.diskBytesPerSec) + Double(stats.networkBytesPerSec))
+    }
+
+    // MARK: - Target-window picker
+
+    func toggleTargetWindowPicker() {
+        if targetWindowPickerActive {
+            cancelTargetWindowPicker()
+        } else {
+            beginTargetWindowPicker()
+        }
+    }
+
+    func beginTargetWindowPicker() {
+        clearTargetWindowPickerMonitors()
+        targetWindowPickerAlert = nil
+        targetWindowPickerActive = true
+        if !targetWindowCursorPushed {
+            NSCursor.crosshair.push()
+            targetWindowCursorPushed = true
+        }
+
+        let globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            let point = NSEvent.mouseLocation
+            Task { @MainActor in
+                guard let self else { return }
+                if event.type == .rightMouseDown {
+                    self.cancelTargetWindowPicker()
+                } else {
+                    await self.completeTargetWindowPick(at: point)
+                }
+            }
+        }
+
+        guard let globalMonitor else {
+            finishTargetWindowPicker()
+            targetWindowPickerAlert = TargetWindowPickerAlert(
+                title: "Window Picker Unavailable",
+                message: "macOS did not allow ProcexpMac to monitor the next mouse click. Grant Accessibility access in System Settings > Privacy & Security > Accessibility, then try again.",
+                offersAccessibilitySettings: true
+            )
+            return
+        }
+        targetWindowGlobalMonitor = globalMonitor
+
+        targetWindowLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in
+            if event.type == .keyDown, event.keyCode != 53 {
+                return event
+            }
+            Task { @MainActor in self?.cancelTargetWindowPicker() }
+            return nil
+        }
+    }
+
+    func cancelTargetWindowPicker() {
+        finishTargetWindowPicker()
+    }
+
+    func openAccessibilitySettingsForTargetPicker() {
+        targetWindowPickerAlert = nil
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func completeTargetWindowPick(at appKitPoint: NSPoint) async {
+        finishTargetWindowPicker()
+        guard let ownerPID = Self.windowOwnerPID(at: appKitPoint) ?? Self.accessibilityOwnerPID(at: appKitPoint) else {
+            targetWindowPickerAlert = Self.noWindowPIDAlert()
+            return
+        }
+
+        if selectProcess(ownerPID: ownerPID) { return }
+        await forceRefresh()
+        if selectProcess(ownerPID: ownerPID) { return }
+
+        targetWindowPickerAlert = TargetWindowPickerAlert(
+            title: "Process Not Listed",
+            message: "The selected window belongs to PID \(ownerPID), but that process is not present in the current snapshot. It may have exited, or macOS may be hiding it from the unprivileged sampler."
+        )
+    }
+
+    private func finishTargetWindowPicker() {
+        clearTargetWindowPickerMonitors()
+        targetWindowPickerActive = false
+        if targetWindowCursorPushed {
+            NSCursor.pop()
+            targetWindowCursorPushed = false
+        }
+    }
+
+    private func clearTargetWindowPickerMonitors() {
+        if let targetWindowGlobalMonitor {
+            NSEvent.removeMonitor(targetWindowGlobalMonitor)
+            self.targetWindowGlobalMonitor = nil
+        }
+        if let targetWindowLocalMonitor {
+            NSEvent.removeMonitor(targetWindowLocalMonitor)
+            self.targetWindowLocalMonitor = nil
+        }
+    }
+
+    @discardableResult
+    private func selectProcess(ownerPID: pid_t) -> Bool {
+        guard let record = snapshot.processes.values.first(where: { $0.id.pid == ownerPID }) else {
+            return false
+        }
+        selection = record.id
+        return true
+    }
+
+    private static func windowOwnerPID(at appKitPoint: NSPoint) -> pid_t? {
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+        let hitTestPoints = targetWindowHitTestPoints(for: appKitPoint)
+        for window in windows {
+            guard intValue(window[kCGWindowLayer as String]) == 0,
+                  let ownerPID = intValue(window[kCGWindowOwnerPID as String]),
+                  ownerPID > 0,
+                  let bounds = windowBounds(window),
+                  bounds.width >= 8,
+                  bounds.height >= 8
+            else { continue }
+            let alpha = doubleValue(window[kCGWindowAlpha as String]) ?? 1
+            guard alpha > 0.02 else { continue }
+            if hitTestPoints.contains(where: { bounds.contains($0) }) {
+                return pid_t(ownerPID)
+            }
+        }
+        return nil
+    }
+
+    private static func accessibilityOwnerPID(at appKitPoint: NSPoint) -> pid_t? {
+        guard AXIsProcessTrusted() else { return nil }
+        let systemWide = AXUIElementCreateSystemWide()
+        for point in targetWindowHitTestPoints(for: appKitPoint) {
+            var element: AXUIElement?
+            let result = AXUIElementCopyElementAtPosition(systemWide, Float(point.x), Float(point.y), &element)
+            guard result == .success, let element else { continue }
+            var ownerPID = pid_t()
+            if AXUIElementGetPid(element, &ownerPID) == .success, ownerPID > 0 {
+                return ownerPID
+            }
+        }
+        return nil
+    }
+
+    private static func noWindowPIDAlert() -> TargetWindowPickerAlert {
+        if AXIsProcessTrusted() {
+            return TargetWindowPickerAlert(
+                title: "No Window Process Found",
+                message: "The click did not hit an on-screen application window with an exposed process identifier. Try a visible app window rather than the desktop, menu bar, Dock, or a transient system surface."
+            )
+        }
+        return TargetWindowPickerAlert(
+            title: "No Window Process Found",
+            message: "The CoreGraphics window list did not expose a process identifier for that point. Some system or protected windows can require Accessibility access. Grant ProcexpMac access in System Settings > Privacy & Security > Accessibility, then try again.",
+            offersAccessibilitySettings: true
+        )
+    }
+
+    private static func targetWindowHitTestPoints(for appKitPoint: NSPoint) -> [CGPoint] {
+        var candidates = [CGPoint(x: appKitPoint.x, y: appKitPoint.y)]
+        if let cgPoint = CGEvent(source: nil)?.location {
+            candidates.append(cgPoint)
+        }
+        if let screen = NSScreen.screens.first(where: { $0.frame.contains(appKitPoint) }) {
+            candidates.append(CGPoint(x: appKitPoint.x, y: screen.frame.maxY - appKitPoint.y))
+            candidates.append(CGPoint(x: appKitPoint.x, y: screen.frame.minY + screen.frame.maxY - appKitPoint.y))
+        }
+        if let maxY = NSScreen.screens.map(\.frame.maxY).max() {
+            candidates.append(CGPoint(x: appKitPoint.x, y: maxY - appKitPoint.y))
+        }
+        return candidates.reduce(into: []) { unique, candidate in
+            let alreadyIncluded = unique.contains { existing in
+                abs(existing.x - candidate.x) < 0.5 && abs(existing.y - candidate.y) < 0.5
+            }
+            if !alreadyIncluded { unique.append(candidate) }
+        }
+    }
+
+    private static func windowBounds(_ window: [String: Any]) -> CGRect? {
+        guard let dictionary = window[kCGWindowBounds as String] as? NSDictionary else { return nil }
+        return CGRect(dictionaryRepresentation: dictionary as CFDictionary)
+    }
+
+    private static func intValue(_ value: Any?) -> Int? {
+        if let number = value as? NSNumber { return number.intValue }
+        if let int = value as? Int { return int }
+        return nil
+    }
+
+    private static func doubleValue(_ value: Any?) -> Double? {
+        if let number = value as? NSNumber { return number.doubleValue }
+        if let double = value as? Double { return double }
+        return nil
     }
 
     /// Merge cached signatures into a snapshot and schedule a bounded number of
@@ -329,6 +822,43 @@ final class AppModel {
                 let info = await signing.signature(forPath: path)
                 self.signatureCache[path] = info
                 self.signatureInFlight.remove(path)
+            }
+        }
+
+        return ProcessSnapshot(
+            timestamp: snapshot.timestamp,
+            interval: snapshot.interval,
+            processes: processes,
+            roots: snapshot.roots,
+            children: snapshot.children,
+            system: snapshot.system
+        )
+    }
+
+    private func enrichWithCommandLines(_ snapshot: ProcessSnapshot) -> ProcessSnapshot {
+        var processes = snapshot.processes
+        var startedThisRefresh = 0
+        let shouldFetch = columns.contains(.commandLine)
+
+        for (id, record) in snapshot.processes {
+            if let cached = commandLineCache[id] {
+                if !cached.isEmpty { processes[id]?.commandLine = cached }
+                continue
+            }
+
+            guard shouldFetch,
+                  !commandLineInFlight.contains(id),
+                  commandLineInFlight.count < maxConcurrentCommandLineLookups,
+                  startedThisRefresh < maxNewCommandLineLookupsPerRefresh
+            else { continue }
+
+            commandLineInFlight.insert(id)
+            startedThisRefresh += 1
+            let data = self.data
+            Task { @MainActor in
+                let value = (try? await data.commandLine(of: id)) ?? ""
+                self.commandLineCache[id] = value
+                self.commandLineInFlight.remove(id)
             }
         }
 

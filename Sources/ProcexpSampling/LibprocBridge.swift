@@ -129,7 +129,7 @@ enum Libproc {
     /// Count of open file descriptors (byte size / stride).
     static func fdCount(_ pid: pid_t) -> Int? {
         let bytes = proc_pidinfo(pid, PROC_PIDLISTFDS, 0, nil, 0)
-        guard bytes > 0 else { return bytes == 0 ? 0 : nil }
+        guard bytes > 0 else { return nil }
         return Int(bytes) / MemoryLayout<proc_fdinfo>.stride
     }
 

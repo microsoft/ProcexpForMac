@@ -51,10 +51,6 @@ private struct GeneralSettingsView: View {
             }
 
             Section {
-                Toggle("Use mock data (demo tree)", isOn: $model.useMockData)
-                    .onChange(of: model.useMockData) {
-                        Task { await model.start() }
-                    }
                 Toggle("Confirm before killing a process", isOn: $model.confirmBeforeKill)
                 Toggle("Verify code signatures", isOn: $model.verifySignatures)
             }
@@ -89,6 +85,7 @@ private struct GeneralSettingsView: View {
 
 private struct ColorSettingsView: View {
     @Environment(AppModel.self) private var model
+    @State private var selectedRules = Set<ProcessColorRule.ID>()
 
     var body: some View {
         @Bindable var model = model
@@ -100,27 +97,34 @@ private struct ColorSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            List {
+            List(selection: $selectedRules) {
                 ForEach($model.colorRules) { $rule in
                     HStack(spacing: 12) {
                         Toggle(isOn: $rule.isEnabled) {
                             Text(Self.name(for: rule.flag))
+                                .foregroundStyle(selectedRules.contains(rule.id) ? Color.white : Color.primary)
                         }
                         .toggleStyle(.checkbox)
+                        .tag(rule.id)
 
                         Spacer()
 
                         ColorPicker("Light", selection: $rule.backgroundLight.asColor,
                                     supportsOpacity: false)
                             .labelsHidden()
-                        Text("Light").font(.caption).foregroundStyle(.secondary)
+                        Text("Light")
+                            .font(.caption)
+                            .foregroundStyle(selectedRules.contains(rule.id) ? Color.white : Color.secondary)
 
                         ColorPicker("Dark", selection: $rule.backgroundDark.asColor,
                                     supportsOpacity: false)
                             .labelsHidden()
-                        Text("Dark").font(.caption).foregroundStyle(.secondary)
+                        Text("Dark")
+                            .font(.caption)
+                            .foregroundStyle(selectedRules.contains(rule.id) ? Color.white : Color.secondary)
                     }
                     .padding(.vertical, 2)
+                    .tag(rule.id)
                 }
             }
             .frame(minHeight: 220)
@@ -165,30 +169,7 @@ private struct ColumnSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            List {
-                // Selected columns first, in their current (draggable) order.
-                Section("Shown") {
-                    ForEach(model.columns, id: \.self) { column in
-                        Toggle(isOn: binding(for: column)) { Text(column.title) }
-                            .toggleStyle(.checkbox)
-                            .disabled(column == .name) // Process name is always shown.
-                    }
-                    .onMove { indices, newOffset in
-                        model.columns.move(fromOffsets: indices, toOffset: newOffset)
-                    }
-                }
-
-                // The remaining, currently-hidden columns.
-                let hidden = Column.allCases.filter { !model.columns.contains($0) }
-                if !hidden.isEmpty {
-                    Section("Available") {
-                        ForEach(hidden, id: \.self) { column in
-                            Toggle(isOn: binding(for: column)) { Text(column.title) }
-                                .toggleStyle(.checkbox)
-                        }
-                    }
-                }
-            }
+            ColumnSelectionEditor(columns: $model.columns)
             .frame(minHeight: 260)
 
             HStack {
@@ -199,22 +180,5 @@ private struct ColumnSettingsView: View {
             }
         }
         .padding()
-    }
-
-    /// A toggle binding that inserts/removes a column from `model.columns`,
-    /// keeping `.name` pinned first so the tree always has its outline column.
-    private func binding(for column: Column) -> Binding<Bool> {
-        Binding(
-            get: { model.columns.contains(column) },
-            set: { isOn in
-                if isOn {
-                    guard !model.columns.contains(column) else { return }
-                    model.columns.append(column)
-                } else {
-                    guard column != .name else { return }
-                    model.columns.removeAll { $0 == column }
-                }
-            }
-        )
     }
 }

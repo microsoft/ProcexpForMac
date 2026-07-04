@@ -293,6 +293,14 @@ private struct FindResultsTable: NSViewRepresentable {
 
         func numberOfRows(in tableView: NSTableView) -> Int { results.count }
 
+        func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+            let rowView = tableView.makeView(withIdentifier: NSUserInterfaceItemIdentifier("highlightRow"), owner: self) as? HighlightTableRowView
+                ?? HighlightTableRowView()
+            rowView.identifier = NSUserInterfaceItemIdentifier("highlightRow")
+            rowView.highlight = nil
+            return rowView
+        }
+
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
             guard results.indices.contains(row), let tableColumn else { return nil }
             let id = tableColumn.identifier.rawValue

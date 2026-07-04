@@ -21,8 +21,8 @@ enum SettingsStore {
         static let columns            = "settings.columns"
         static let processColumnWidth = "settings.processColumnWidth"
         static let columnWidths       = "settings.columnWidths"
+        static let columnSets         = "settings.columnSets"
         static let colorRules         = "settings.colorRules"
-        static let useMockData        = "settings.useMockData"
         static let confirmBeforeKill  = "settings.confirmBeforeKill"
         static let verifySignatures   = "settings.verifySignatures"
         static let highlightDuration  = "settings.differenceHighlightDuration"
@@ -53,7 +53,12 @@ enum SettingsStore {
         }
 
         if let widths = defaults.dictionary(forKey: Key.columnWidths) as? [String: Double] {
-            model.columnWidths = widths.filter { Column(rawValue: $0.key) != nil && $0.value > 0 }
+            model.columnWidths = AppModel.sanitizedColumnWidths(widths)
+        }
+
+        if let data = defaults.data(forKey: Key.columnSets),
+           let sets = try? JSONDecoder().decode([ColumnSet].self, from: data) {
+            model.columnSets = AppModel.normalizedColumnSets(sets)
         }
 
         if let data = defaults.data(forKey: Key.colorRules),
@@ -62,9 +67,6 @@ enum SettingsStore {
             model.colorRules = rules
         }
 
-        if defaults.object(forKey: Key.useMockData) != nil {
-            model.useMockData = defaults.bool(forKey: Key.useMockData)
-        }
         if defaults.object(forKey: Key.confirmBeforeKill) != nil {
             model.confirmBeforeKill = defaults.bool(forKey: Key.confirmBeforeKill)
         }
@@ -86,10 +88,12 @@ enum SettingsStore {
         defaults.set(model.columns.map(\.rawValue), forKey: Key.columns)
         defaults.set(model.processColumnWidth, forKey: Key.processColumnWidth)
         defaults.set(model.columnWidths, forKey: Key.columnWidths)
+        if let data = try? JSONEncoder().encode(model.columnSets) {
+            defaults.set(data, forKey: Key.columnSets)
+        }
         if let data = try? JSONEncoder().encode(model.colorRules) {
             defaults.set(data, forKey: Key.colorRules)
         }
-        defaults.set(model.useMockData, forKey: Key.useMockData)
         defaults.set(model.confirmBeforeKill, forKey: Key.confirmBeforeKill)
         defaults.set(model.verifySignatures, forKey: Key.verifySignatures)
         defaults.set(model.differenceHighlightDuration, forKey: Key.highlightDuration)

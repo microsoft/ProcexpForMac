@@ -82,9 +82,8 @@ ProcexpMac/
 ```
 
 **Golden rule for parallelism:** everything is coded against the **protocols and value
-types in `ProcexpModel` (W0)**. W0 ships first with a **`MockDataProvider`**, so UI,
-graphs, and property-sheet workstreams build and run against mock data before the real
-sampling engine exists.
+types in `ProcexpModel` (W0)**. UI and engine workstreams integrate against real providers
+with graceful degradation when a capability is unavailable.
 
 ---
 
@@ -161,7 +160,7 @@ Define all columns in W0 as a `Column` enum. Sources:
 ## 6. Workstream breakdown & dependency graph
 
 ```
-        ┌────────────────────────── W0 ProcexpModel (contracts + Mock) ──────────────────────────┐
+        ┌────────────────────────── W0 ProcexpModel (contracts) ─────────────────────────────────┐
         │ (BLOCKS ALL — ship first, ~small, one owner)                                            │
         └───────────────────────────────────────────────────────────────────────────────────────┘
              │            │            │            │            │            │            │
@@ -177,7 +176,7 @@ Define all columns in W0 as a `Column` enum. Sources:
 ```
 
 - **Phase 0 (serial, ~1 unit):** W0 only.
-- **Phase 1 (max parallelism):** W1, W2, W3, W4, W5, W6, W7, W9, W11, W12 all run against W0 mocks.
+- **Phase 1 (max parallelism):** W1, W2, W3, W4, W5, W6, W7, W9, W11, W12 all run against W0 contracts.
 - **Phase 2 (integration):** wire real providers into UI; W8 actions; W10 menu bar; W13 packaging/notarization; end-to-end polish.
 
 Each workstream below is a **self-contained subagent brief**.
@@ -196,12 +195,11 @@ Each spec lists: **Owns** (files), **Consumes** (contracts), **Produces** (contr
   (mapped image), `FileDescriptorInfo`, `SocketInfo`, `SignatureInfo`, `SystemStats`,
   `HistoryRing<T>`, `Column` enum + formatting, `ProcessColorRule`, and the protocols:
   `ProcessDataProviding`, `PrivilegedSampling`, `SigningProviding`, `NetworkProviding`,
-  `SystemStatsProviding`, plus `MockDataProvider` conforming to all of them with realistic
-  fake data + a synthetic tree.
-- **Tasks:** define types (Codable where useful), define protocols, implement mock,
-  unit-test mock snapshots, document invariants (identity = pid+starttime).
-- **Acceptance:** all packages/targets can `import ProcexpModel`; mock produces a stable,
-  animatable tree of ~150 fake processes with moving CPU/memory values.
+  `SystemStatsProviding`.
+- **Tasks:** define types (Codable where useful), define protocols, document invariants
+  (identity = pid+starttime), and unit-test model behavior with explicit test fixtures.
+- **Acceptance:** all packages/targets can `import ProcexpModel`; core model tests cover
+  identity, diffing, formatting, tree-building, and color priority.
 
 ### W1 — Sampling engine (unprivileged)  *(core)*
 - **Owns:** `Packages/ProcexpSampling/*`
@@ -332,13 +330,14 @@ Each spec lists: **Owns** (files), **Consumes** (contracts), **Produces** (contr
 - **Snapshots are immutable value types**; the engine never mutates published state.
 - **No blocking on the main thread**; all sampling/signing/VT is `async` off-main.
 - **Graceful degradation**: every privileged datum has an unprivileged fallback or "N/A".
-- **Testing**: each package ships unit tests + a SwiftUI preview using `MockDataProvider`.
+- **Testing**: each package ships unit tests and validates graceful behavior against real
+  providers where possible.
 - **Accessibility & localization**: use `LocalizedStringKey`, VoiceOver labels on graphs.
 - **Style**: match Procexp semantics but native macOS HIG (toolbar, SF Symbols, colors).
 
 ## 9. Suggested milestones
 
-1. **M1 Skeleton:** W0 done; app runs on mock data showing a live fake tree (W3+W4 basic).
+1. **M1 Skeleton:** W0 done; app compiles against shared contracts and live providers.
 2. **M2 Real processes:** W1 wired; columns, sorting, colors, lower pane (W5), actions (W8).
 3. **M3 Depth:** W6 properties, W7 signing+VT, W9 network, W2 helper for cross-user/CPU.
 4. **M4 Polish/ship:** W10 menu bar, W11 settings, W12 autostart, W13 notarized release.

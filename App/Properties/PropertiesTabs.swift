@@ -272,8 +272,13 @@ struct ImageTab: View {
         if let sig = detail.signature {
             Section(title: "Code Signature") {
                 Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 3) {
+                    InfoRow(label: "Status", value: sig.status.rawValue.capitalized)
                     InfoRow(label: "Signer", value: sig.signerDescription)
+                    InfoRow(label: "Publisher", value: sig.publisherDescription ?? "")
                     InfoRow(label: "Team ID", value: sig.teamID ?? "")
+                    if let reason = sig.validationErrorMessage, !reason.isEmpty {
+                        InfoRow(label: "Reason", value: reason)
+                    }
                     InfoRow(label: "Notarized", value: sig.isNotarized ? "Yes" : "No")
                     InfoRow(label: "Platform Binary", value: sig.isPlatformBinary ? "Yes" : "No")
                     InfoRow(label: "SHA-256", value: sig.sha256 ?? "", mono: true)
@@ -281,6 +286,7 @@ struct ImageTab: View {
                         InfoRow(label: "VirusTotal", value: "\(vt.positives) / \(vt.total) detections")
                     }
                 }
+                authorityChain(sig.authority)
                 if let note = detail.virusTotalNote {
                     Text(note).font(.caption).foregroundStyle(.secondary)
                 }
@@ -311,6 +317,22 @@ struct ImageTab: View {
     }
 }
 
+@ViewBuilder private func authorityChain(_ authority: [String]) -> some View {
+    if !authority.isEmpty {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Certificate Chain").font(.subheadline).bold()
+            ForEach(Array(authority.enumerated()), id: \.offset) { index, name in
+                Text("\(String(repeating: "    ", count: index))- \(name)")
+                    .font(.system(.caption, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                    .help(name)
+            }
+        }
+    }
+}
+
 // MARK: - Performance tab
 
 struct PerformanceTab: View {
@@ -318,47 +340,70 @@ struct PerformanceTab: View {
     @Bindable var detail: PropertiesDetail
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Section(title: "CPU") {
-                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
-                    InfoRow(label: "CPU Usage", value: String(format: "%.2f %%", record.cpuPercent))
-                    InfoRow(label: "Priority", value: String(record.priority))
-                    InfoRow(label: "Nice", value: String(record.nice))
-                    InfoRow(label: "CPU Time", value: ByteFormat.duration(nanos: record.cpuTime))
-                    InfoRow(label: "Context Switches",
-                            value: record.contextSwitches.map(String.init) ?? "—")
-                }
+        Grid(alignment: .topLeading, horizontalSpacing: 12, verticalSpacing: 8) {
+            GridRow {
+                cpuSection
+                virtualMemorySection
             }
-            Section(title: "Virtual Memory") {
-                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
-                    InfoRow(label: "Private Bytes",
-                            value: bytes(record.physFootprint ?? record.residentSize))
-                    InfoRow(label: "Virtual Size", value: bytes(record.virtualSize))
-                    InfoRow(label: "Page Faults",
-                            value: record.pageFaults.map(String.init) ?? "—")
-                    InfoRow(label: "Page Fault Delta", value: String(detail.pageFaultDelta))
-                }
+            GridRow {
+                physicalMemorySection
+                ioSection
             }
-            Section(title: "Physical Memory") {
-                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
-                    InfoRow(label: "Working Set", value: bytes(record.residentSize))
-                }
-            }
-            Section(title: "I/O") {
-                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
-                    InfoRow(label: "Reads", value: bytesOrDash(record.diskBytesRead))
-                    InfoRow(label: "Writes", value: bytesOrDash(record.diskBytesWritten))
-                }
-            }
-            Section(title: "Handles / Threads") {
-                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
-                    InfoRow(label: "File Descriptors",
-                            value: record.fileDescriptorCount.map(String.init) ?? "—")
-                    InfoRow(label: "Threads", value: String(record.threadCount))
-                }
+            GridRow {
+                handlesThreadsSection
+                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
             }
         }
         .padding(8)
+    }
+
+    private var cpuSection: some View {
+        Section(title: "CPU") {
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
+                InfoRow(label: "CPU Usage", value: String(format: "%.2f %%", record.cpuPercent))
+                InfoRow(label: "Priority", value: String(record.priority))
+                InfoRow(label: "Nice", value: String(record.nice))
+                InfoRow(label: "CPU Time", value: ByteFormat.duration(nanos: record.cpuTime))
+                InfoRow(label: "Context Switches", value: record.contextSwitches.map(String.init) ?? "—")
+            }
+        }
+    }
+
+    private var virtualMemorySection: some View {
+        Section(title: "Virtual Memory") {
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
+                InfoRow(label: "Private Bytes", value: bytes(record.physFootprint ?? record.residentSize))
+                InfoRow(label: "Virtual Size", value: bytes(record.virtualSize))
+                InfoRow(label: "Page Faults", value: record.pageFaults.map(String.init) ?? "—")
+                InfoRow(label: "Page Fault Delta", value: String(detail.pageFaultDelta))
+            }
+        }
+    }
+
+    private var physicalMemorySection: some View {
+        Section(title: "Physical Memory") {
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
+                InfoRow(label: "Working Set", value: bytes(record.residentSize))
+            }
+        }
+    }
+
+    private var ioSection: some View {
+        Section(title: "I/O") {
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
+                InfoRow(label: "Reads", value: bytesOrDash(record.diskBytesRead))
+                InfoRow(label: "Writes", value: bytesOrDash(record.diskBytesWritten))
+            }
+        }
+    }
+
+    private var handlesThreadsSection: some View {
+        Section(title: "Handles / Threads") {
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
+                InfoRow(label: "File Descriptors", value: record.fileDescriptorCount.map(String.init) ?? "—")
+                InfoRow(label: "Threads", value: String(record.threadCount))
+            }
+        }
     }
 
     private func bytes(_ v: UInt64) -> String {
@@ -442,6 +487,7 @@ private struct GraphPanel: View {
 struct ThreadsTab: View {
     let record: ProcessRecord
     @Bindable var detail: PropertiesDetail
+    @State private var selectedThreads = Set<ThreadInfo.ID>()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -453,22 +499,13 @@ struct ThreadsTab: View {
                     .multilineTextAlignment(.center)
                     .padding()
             } else {
-                Table(detail.threads) {
-                    TableColumn("TID") { Text(String($0.id)).monospacedDigit() }
-                    TableColumn("CPU %") { Text(String(format: "%.2f", $0.cpuPercent)).monospacedDigit() }
-                    TableColumn("State") { Text($0.state.isEmpty ? "—" : $0.state) }
-                    TableColumn("Start") { thread in
-                        Text(startText(thread)).font(.system(.body, design: .monospaced))
-                    }
+                Table(detail.threads, selection: $selectedThreads) {
+                    TableColumn("TID") { thread in selectableText(String(thread.id), selected: selectedThreads.contains(thread.id)).monospacedDigit() }
+                    TableColumn("CPU %") { thread in selectableText(String(format: "%.2f", thread.cpuPercent), selected: selectedThreads.contains(thread.id)).monospacedDigit() }
+                    TableColumn("State") { thread in selectableText(thread.state.isEmpty ? "—" : thread.state, selected: selectedThreads.contains(thread.id)) }
                 }
             }
         }
-    }
-
-    private func startText(_ thread: ThreadInfo) -> String {
-        if let symbol = thread.startSymbol, !symbol.isEmpty { return symbol }
-        if let addr = thread.startAddress { return String(format: "0x%llx", addr) }
-        return "—"
     }
 }
 
@@ -480,12 +517,14 @@ struct TCPIPTab: View {
     var body: some View {
         VStack {
             if detail.sockets.isEmpty {
-                Text("This process has no open TCP/IP sockets.")
+                Text(detail.socketNote ?? "No TCP/IP sockets were returned.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .multilineTextAlignment(.center)
+                    .padding()
             } else {
-                SocketRowsTable(sockets: detail.sockets, highlights: detail.socketHighlights)
+                SocketRowsTable(sockets: detail.sockets, remoteNames: detail.socketRemoteNames, highlights: detail.socketHighlights)
             }
         }
     }
@@ -493,6 +532,7 @@ struct TCPIPTab: View {
 
 private struct SocketRowsTable: NSViewRepresentable {
     let sockets: [SocketInfo]
+    let remoteNames: [String: String]
     let highlights: [String: TimedListRowHighlight]
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -525,14 +565,18 @@ private struct SocketRowsTable: NSViewRepresentable {
         for column in Coordinator.columns {
             tableView.addTableColumn(column.tableColumn)
         }
+        context.coordinator.autosizesColumns = !TableColumnPersistence.hasSavedLayout(key: Coordinator.persistenceKey)
+        TableColumnPersistence.apply(to: tableView, key: Coordinator.persistenceKey)
         scrollView.documentView = tableView
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.sockets = sockets
+        context.coordinator.remoteNames = remoteNames
         context.coordinator.highlights = highlights
         context.coordinator.tableView?.reloadData()
+        context.coordinator.autosizeColumns()
     }
 
     final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
@@ -555,12 +599,17 @@ private struct SocketRowsTable: NSViewRepresentable {
             ColumnDef(id: "proto", title: "Proto", width: 80),
             ColumnDef(id: "local", title: "Local Address", width: 240),
             ColumnDef(id: "remote", title: "Remote Address", width: 240),
+            ColumnDef(id: "remoteName", title: "Remote Name", width: 220),
             ColumnDef(id: "state", title: "State", width: 120),
         ]
+        static let persistenceKey = "properties.tcpip.columns"
 
         var sockets: [SocketInfo] = []
+        var remoteNames: [String: String] = [:]
         var highlights: [String: TimedListRowHighlight] = [:]
         weak var tableView: NSTableView?
+        var autosizesColumns = true
+        private var suppressColumnPersistence = false
         private let typeSelectBuffer = TypeSelectBuffer()
 
         func numberOfRows(in tableView: NSTableView) -> Int { sockets.count }
@@ -577,8 +626,35 @@ private struct SocketRowsTable: NSViewRepresentable {
             guard sockets.indices.contains(row), let tableColumn else { return nil }
             let id = tableColumn.identifier.rawValue
             let cell = tableView.makeView(withIdentifier: tableColumn.identifier, owner: self) as? NSTableCellView ?? makeCell(id: tableColumn.identifier)
-            cell.textField?.stringValue = text(for: id, socket: sockets[row])
+            let value = text(for: id, socket: sockets[row])
+            cell.textField?.stringValue = value
             return cell
+        }
+
+        func tableView(_ tableView: NSTableView, sizeToFitWidthOfColumn column: Int) -> CGFloat {
+            guard tableView.tableColumns.indices.contains(column) else { return 80 }
+            return autosizeWidth(for: tableView.tableColumns[column])
+        }
+
+        func autosizeColumns() {
+            guard autosizesColumns, let tableView else { return }
+            suppressColumnPersistence = true
+            defer { suppressColumnPersistence = false }
+            for column in tableView.tableColumns {
+                column.width = autosizeWidth(for: column)
+            }
+        }
+
+        func tableViewColumnDidMove(_ notification: Notification) {
+            guard let tableView, !suppressColumnPersistence else { return }
+            autosizesColumns = false
+            TableColumnPersistence.save(from: tableView, key: Self.persistenceKey)
+        }
+
+        func tableViewColumnDidResize(_ notification: Notification) {
+            guard let tableView, !suppressColumnPersistence else { return }
+            autosizesColumns = false
+            TableColumnPersistence.save(from: tableView, key: Self.persistenceKey)
         }
 
         func handleTypeSelect(_ text: String) -> Bool {
@@ -625,11 +701,27 @@ private struct SocketRowsTable: NSViewRepresentable {
             return cell
         }
 
+        private func autosizeWidth(for column: NSTableColumn) -> CGFloat {
+            let id = column.identifier.rawValue
+            let font = NSFont.monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+            let valueAttributes: [NSAttributedString.Key: Any] = [.font: font]
+            let headerAttributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
+            ]
+            var width = ceil((column.title as NSString).size(withAttributes: headerAttributes).width) + 28
+            for socket in sockets {
+                let value = text(for: id, socket: socket)
+                width = max(width, ceil((value as NSString).size(withAttributes: valueAttributes).width) + 16)
+            }
+            return max(column.minWidth, width)
+        }
+
         private func text(for id: String, socket: SocketInfo) -> String {
             switch id {
             case "proto": return socket.proto.rawValue.uppercased()
             case "local": return endpoint(socket.localAddress, socket.localPort)
             case "remote": return endpoint(socket.remoteAddress, socket.remotePort)
+            case "remoteName": return remoteNames[socketKey(socket)] ?? ""
             case "state": return socket.state.isEmpty ? "—" : socket.state
             default: return ""
             }
@@ -650,6 +742,7 @@ private struct SocketRowsTable: NSViewRepresentable {
 
 struct EnvironmentTab: View {
     @Bindable var detail: PropertiesDetail
+    @State private var selectedVariables = Set<EnvVar.ID>()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -661,9 +754,16 @@ struct EnvironmentTab: View {
                     .multilineTextAlignment(.center)
                     .padding()
             } else {
-                Table(detail.environment) {
-                    TableColumn("Variable") { Text($0.id).font(.system(.body, design: .monospaced)) }
-                    TableColumn("Value") { Text($0.value).font(.system(.body, design: .monospaced)).textSelection(.enabled) }
+                Table(detail.environment, selection: $selectedVariables) {
+                    TableColumn("Variable") { variable in
+                        selectableText(variable.id, selected: selectedVariables.contains(variable.id))
+                            .font(.system(.body, design: .monospaced))
+                    }
+                    TableColumn("Value") { variable in
+                        selectableText(variable.value, selected: selectedVariables.contains(variable.id))
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
                 }
             }
         }
@@ -675,6 +775,7 @@ struct EnvironmentTab: View {
 struct StringsTab: View {
     @Bindable var detail: PropertiesDetail
     @State private var filter = ""
+    @State private var selectedRows = Set<Int>()
 
     private var filtered: [String] {
         guard !filter.isEmpty else { return detail.strings }
@@ -704,11 +805,14 @@ struct StringsTab: View {
                 Text("Image strings (memory strings require the privileged helper).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                List(Array(filtered.enumerated()), id: \.offset) { _, line in
-                    Text(line)
+                List(selection: $selectedRows) {
+                    ForEach(Array(filtered.enumerated()), id: \.offset) { offset, line in
+                        selectableText(line, selected: selectedRows.contains(offset))
                         .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
                         .lineLimit(1)
+                        .tag(offset)
+                    }
                 }
                 .listStyle(.plain)
             }
@@ -725,6 +829,10 @@ struct StringsTab: View {
     }
 }
 
+private func selectableText(_ text: String, selected: Bool) -> Text {
+    Text(text).foregroundStyle(selected ? Color.white : Color.primary)
+}
+
 // MARK: - Security tab
 
 struct SecurityTab: View {
@@ -732,50 +840,126 @@ struct SecurityTab: View {
     @Bindable var detail: PropertiesDetail
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Section(title: "Identity") {
-                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
-                    InfoRow(label: "User", value: record.userName ?? "—")
-                    InfoRow(label: "UID", value: String(record.uid))
-                    InfoRow(label: "Session (TTY)", value: record.sessionTTY ?? "—")
-                    InfoRow(label: "Sandboxed", value: record.flags.contains(.sandboxed) ? "Yes" : "No")
-                    InfoRow(label: "Platform Binary",
-                            value: record.flags.contains(.platformBinary) ? "Yes" : "No")
-                    InfoRow(label: "launchd Managed",
-                            value: record.flags.contains(.service) ? "Yes" : "No")
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                identitySection
+                entitlementsSection
+                sandboxRuntimeSection
             }
-            Section(title: "Code Signing") {
-                if let sig = detail.signature {
-                    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
-                        InfoRow(label: "Status", value: sig.status.rawValue.capitalized)
-                        InfoRow(label: "Team ID", value: sig.teamID ?? "")
-                        InfoRow(label: "Ad-hoc", value: sig.isAdHoc ? "Yes" : "No")
-                        InfoRow(label: "Notarized", value: sig.isNotarized ? "Yes" : "No")
-                    }
-                    if sig.authority.isEmpty {
-                        Text("No certificate authority chain.")
-                            .font(.caption).foregroundStyle(.secondary)
-                    } else {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Authority Chain").font(.subheadline).bold()
-                            ForEach(Array(sig.authority.enumerated()), id: \.offset) { index, name in
-                                Text("\(String(repeating: "    ", count: index))• \(name)")
+            .padding(8)
+        }
+    }
+
+    @ViewBuilder private var identitySection: some View {
+        Section(title: "Identity") {
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
+                InfoRow(label: "User", value: principal(record.uid, record.userName))
+                InfoRow(label: "Effective UID",
+                        value: principal(identity?.effectiveUID ?? record.uid,
+                                         identity?.effectiveUserName ?? record.userName))
+                InfoRow(label: "Real UID",
+                        value: principal(identity?.realUID, identity?.realUserName))
+                InfoRow(label: "Saved UID",
+                        value: principal(identity?.savedUID, identity?.savedUserName))
+                InfoRow(label: "Effective GID",
+                        value: group(identity?.effectiveGID, identity?.effectiveGroupName))
+                InfoRow(label: "Real GID",
+                        value: group(identity?.realGID, identity?.realGroupName))
+                InfoRow(label: "Saved GID",
+                        value: group(identity?.savedGID, identity?.savedGroupName))
+                InfoRow(label: "Account Group",
+                        value: group(identity?.accountPrimaryGID, identity?.accountPrimaryGroupName))
+                InfoRow(label: "Session (TTY)", value: record.sessionTTY ?? "—")
+                InfoRow(label: "launchd Managed",
+                        value: record.flags.contains(.service) ? "Yes" : "No")
+            }
+        }
+    }
+
+    @ViewBuilder private var entitlementsSection: some View {
+        Section(title: "Entitlements") {
+            if let code = detail.securityCode {
+                if code.entitlements.isEmpty {
+                    Text(code.entitlementsNote ?? "No entitlements.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    LazyVStack(alignment: .leading, spacing: 3) {
+                        ForEach(code.entitlements) { entitlement in
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(entitlement.key)
                                     .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 260, alignment: .leading)
                                     .lineLimit(1)
                                     .truncationMode(.middle)
+                                Text(entitlement.value)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .lineLimit(2)
+                                    .truncationMode(.middle)
                                     .textSelection(.enabled)
-                                    .help(name)
+                                    .help(entitlement.value)
                             }
                         }
                     }
-                } else {
-                    Text(detail.isVerifying ? "Verifying…" : "Signature not verified.")
-                        .font(.caption).foregroundStyle(.secondary)
                 }
+            } else {
+                Text("Loading entitlements…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            Spacer(minLength: 0)
         }
-        .padding(8)
+    }
+
+    @ViewBuilder private var sandboxRuntimeSection: some View {
+        Section(title: "Sandbox / Runtime") {
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
+                InfoRow(label: "App Sandbox", value: sandboxStatus)
+                InfoRow(label: "Sandbox Source", value: sandboxSource)
+                InfoRow(label: "Hardened Runtime", value: hardenedRuntimeStatus)
+                InfoRow(label: "Runtime Source", value: detail.securityCode?.hardenedRuntimeNote ?? "Loading…")
+                InfoRow(label: "Platform Binary",
+                        value: record.flags.contains(.platformBinary) ? "Yes" : "No")
+            }
+        }
+    }
+
+    private var identity: ProcessSecurityIdentity? { detail.securityIdentity }
+
+    private func principal(_ uid: UInt32?, _ name: String?) -> String {
+        guard let uid else { return "—" }
+        if let name, !name.isEmpty { return "\(name) (\(uid))" }
+        return String(uid)
+    }
+
+    private func group(_ gid: UInt32?, _ name: String?) -> String {
+        guard let gid else { return "—" }
+        if let name, !name.isEmpty { return "\(name) (\(gid))" }
+        return String(gid)
+    }
+
+    private var sandboxStatus: String {
+        if detail.securityCode?.appSandboxEntitlement == true { return "Yes" }
+        if record.flags.contains(.sandboxed) { return "Yes" }
+        if detail.securityCode?.appSandboxEntitlement == false { return "No" }
+        return "No sandbox signal detected"
+    }
+
+    private var sandboxSource: String {
+        if detail.securityCode?.appSandboxEntitlement == true {
+            return "com.apple.security.app-sandbox entitlement"
+        }
+        if record.flags.contains(.sandboxed) {
+            return "Process flag from sampler"
+        }
+        if detail.securityCode?.appSandboxEntitlement == false {
+            return "App Sandbox entitlement is false"
+        }
+        return "No App Sandbox entitlement or sampler flag"
+    }
+
+    private var hardenedRuntimeStatus: String {
+        guard let hardened = detail.securityCode?.hardenedRuntime else { return "Unavailable" }
+        return hardened ? "Yes" : "No"
     }
 }

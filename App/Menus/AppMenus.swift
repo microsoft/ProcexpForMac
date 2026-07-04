@@ -86,10 +86,6 @@ private struct OptionsMenu: View {
         Toggle("Verify Image Signatures", isOn: $model.verifySignatures)
         Toggle("Confirm Kill", isOn: $model.confirmBeforeKill)
         Toggle("Always On Top", isOn: $model.alwaysOnTop)
-        Toggle("Use Mock Data", isOn: Binding(
-            get: { model.useMockData },
-            set: { model.useMockData = $0; Task { await model.start() } }
-        ))
 
         Divider()
 
@@ -134,6 +130,11 @@ private struct ViewMenu: View {
                 model.showLowerPane = true
             }
             .keyboardShortcut("h", modifiers: .command)
+            Button("Threads") {
+                model.lowerPaneMode = .threads
+                model.showLowerPane = true
+            }
+            .keyboardShortcut("y", modifiers: .command)
         }
 
         Divider()
@@ -161,9 +162,24 @@ private struct ViewMenu: View {
 
         Divider()
 
+        Button("Select Columns…") { model.showSelectColumnsSheet = true }
+        Menu("Load Column Set") {
+            if model.columnSets.isEmpty {
+                Button("No Saved Column Sets") { }
+                    .disabled(true)
+            } else {
+                ForEach(model.columnSets) { set in
+                    Button(set.name) { model.applyColumnSet(set) }
+                }
+            }
+        }
+        Button("Save Column Set…") { model.showSaveColumnSetSheet = true }
+        Button("Organize Column Sets…") { model.showOrganizeColumnSetsSheet = true }
+
+        Divider()
+
         // STUBS.
         Button("Show Processes From All Users") { NSWorkspaceStub.beep() }
-        Button("Select Columns…") { NSWorkspaceStub.beep() }
     }
 
     private func speedLabel(_ seconds: TimeInterval) -> String {
@@ -212,6 +228,17 @@ private struct ProcessMenu: View {
 
         Button("Bring to Front") { request(.bringToFront) }
             .disabled(model.selection == nil)
+        Button("Sample Process…") { model.sampleSelectedProcess() }
+            .disabled(model.selection == nil)
+
+        Divider()
+
+        Button("Search Online") { model.searchOnlineForSelectedProcess() }
+            .disabled(model.selection == nil)
+        Button("Check VirusTotal") {
+            Task { await model.checkVirusTotalForSelectedProcess() }
+        }
+        .disabled(model.selection == nil)
 
         Divider()
 

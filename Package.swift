@@ -18,14 +18,16 @@ let package = Package(
         // Local smoke-checker that runs without full Xcode (CLT-only) since the
         // XCTest/Testing frameworks are unavailable there. `swift run ProcexpSmoke`.
         .executable(name: "ProcexpSmoke", targets: ["ProcexpSmoke"]),
+        .executable(name: "ProcexpTcpFixture", targets: ["ProcexpTcpFixture"]),
     ],
     targets: [
         .executableTarget(name: "ProcexpSmoke", dependencies: [
             "ProcexpModel", "ProcexpSampling", "ProcexpSigning",
             "ProcexpNetwork", "ProcexpGraphs", "ProcexpAutostart", "ProcexpActions",
         ]),
+        .executableTarget(name: "ProcexpTcpFixture"),
 
-        // W0 — shared contracts + mock (foundation; blocks everyone)
+        // W0 — shared contracts (foundation; blocks everyone)
         .target(name: "ProcexpModel"),
         .testTarget(name: "ProcexpModelTests", dependencies: ["ProcexpModel"]),
 

@@ -7,6 +7,11 @@ import AppKit
 
 @MainActor
 enum TableColumnPersistence {
+    static func hasSavedLayout(key: String, defaults: UserDefaults = .standard) -> Bool {
+        defaults.dictionary(forKey: key + ".widths") != nil
+            || defaults.array(forKey: key + ".order") != nil
+    }
+
     static func apply(to tableView: NSTableView, key: String, defaults: UserDefaults = .standard) {
         let widthKey = key + ".widths"
         if let widths = defaults.dictionary(forKey: widthKey) as? [String: Double] {

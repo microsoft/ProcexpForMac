@@ -18,6 +18,9 @@ enum ProcessCommand: Sendable {
     case setNice(Int32)
     case bringToFront
     case restart
+    case sample
+    case searchOnline
+    case checkVirusTotal
     case properties
     case copy
 }
@@ -96,6 +99,7 @@ struct ProcessOutlineView: NSViewRepresentable {
         private var currentRules: [ProcessColorRule] = []
         private var currentTreeMode = true
         private var currentSearchText = ""
+        private var lastRestoredSelection: ProcessID?
         private var sortColumn: Column?
         private var sortAscending = true
         private var didInitialExpand = false
@@ -192,6 +196,7 @@ struct ProcessOutlineView: NSViewRepresentable {
             columnsMenu.delegate = self
             columnsMenu.autoenablesItems = false
 
+            rowMenu.delegate = self
             rowMenu.autoenablesItems = false
             func add(_ title: String, _ selector: Selector) {
                 let item = NSMenuItem(title: title, action: selector, keyEquivalent: "")
@@ -215,6 +220,10 @@ struct ProcessOutlineView: NSViewRepresentable {
             rowMenu.addItem(priorityItem)
             add("Bring to Front", #selector(menuBringToFront(_:)))
             add("Restart", #selector(menuRestart(_:)))
+            add("Sample Process…", #selector(menuSample(_:)))
+            rowMenu.addItem(.separator())
+            add("Search Online", #selector(menuSearchOnline(_:)))
+            add("Check VirusTotal", #selector(menuCheckVirusTotal(_:)))
             rowMenu.addItem(.separator())
             add("Properties...", #selector(menuProperties(_:)))
             add("Copy", #selector(menuCopy(_:)))
@@ -402,22 +411,35 @@ struct ProcessOutlineView: NSViewRepresentable {
         }
 
         func menuNeedsUpdate(_ menu: NSMenu) {
+            if menu === rowMenu {
+                updateProcessMenuItemsEnabled(clickedProcessID() != nil, in: rowMenu)
+                return
+            }
             guard menu === columnsMenu else { return }
             menu.removeAllItems()
             let shown = Set(currentColumns)
-            for column in Column.allCases {
+            for column in Column.supportedOnMac {
                 let item = NSMenuItem(title: column.title, action: #selector(toggleColumn(_:)), keyEquivalent: "")
                 item.target = self
                 item.representedObject = column.rawValue
                 item.state = shown.contains(column) ? .on : .off
-                item.isEnabled = column != .name
+                item.isEnabled = column != .name && column != .pid
                 menu.addItem(item)
+            }
+        }
+
+        private func updateProcessMenuItemsEnabled(_ enabled: Bool, in menu: NSMenu) {
+            for item in menu.items where !item.isSeparatorItem {
+                item.isEnabled = enabled
+                if let submenu = item.submenu {
+                    updateProcessMenuItemsEnabled(enabled, in: submenu)
+                }
             }
         }
 
         @objc private func toggleColumn(_ sender: NSMenuItem) {
             guard let raw = sender.representedObject as? String,
-                  let column = Column(rawValue: raw), column != .name else { return }
+                let column = Column(rawValue: raw), column != .name, column != .pid else { return }
             var columns = model.columns
             if let index = columns.firstIndex(of: column) {
                 columns.remove(at: index)
@@ -520,6 +542,18 @@ struct ProcessOutlineView: NSViewRepresentable {
         private func restoreSelection() {
             if let selection = model.selection, snapshot.processes[selection] == nil {
                 model.selection = nil
+            }
+            let selectionChanged = model.selection != lastRestoredSelection
+            lastRestoredSelection = model.selection
+            if selectionChanged, let selection = model.selection {
+                if visibleRows.firstIndex(where: { $0.id == selection }) == nil {
+                    expandAncestors(of: selection)
+                    rebuildVisibleRows()
+                    rebuildProcessWidthCache()
+                    rebuildUsageMaxima()
+                    updateCanvasFrames()
+                }
+                scrollSelectionToVisible()
             }
             invalidateAll()
         }
@@ -646,7 +680,7 @@ struct ProcessOutlineView: NSViewRepresentable {
                     drawText(column.string(for: record),
                              in: rect.insetBy(dx: 4, dy: 1),
                              rightAligned: column.isRightAligned,
-                             selected: false)
+                             selected: model.selection == record.id)
                     drawVerticalBorder(x: rect.maxX - 0.5, minY: rowRect.minY, maxY: rowRect.maxY)
                 }
                 x += width
@@ -668,7 +702,7 @@ struct ProcessOutlineView: NSViewRepresentable {
             let font: NSFont = rightAligned && !bold
                 ? .monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
                 : .systemFont(ofSize: NSFont.smallSystemFontSize, weight: bold ? .semibold : .regular)
-            let color: NSColor = selected ? .alternateSelectedControlTextColor : .labelColor
+            let color: NSColor = selected ? .white : .labelColor
             (text as NSString).draw(in: rect, withAttributes: [.font: font, .foregroundColor: color, .paragraphStyle: paragraph])
         }
 
@@ -839,6 +873,34 @@ struct ProcessOutlineView: NSViewRepresentable {
                 origin = next
             }
             return nil
+        }
+
+        private func metricCellRect(for column: Column, rowIndex: Int) -> NSRect? {
+            var x: CGFloat = 0
+            for candidate in metricColumns {
+                let columnWidth = width(for: candidate)
+                if candidate == column {
+                    return NSRect(
+                        x: x,
+                        y: CGFloat(rowIndex) * Self.rowHeight,
+                        width: columnWidth,
+                        height: Self.rowHeight
+                    )
+                }
+                x += columnWidth
+            }
+            return nil
+        }
+
+        private func processTextRect(for row: VisibleProcessRow, rowIndex: Int) -> NSRect {
+            let disclosureX = 5 + CGFloat(row.depth) * Self.indentationPerLevel
+            let iconX = disclosureX + 13
+            return NSRect(
+                x: iconX + Self.iconSize + 5,
+                y: CGFloat(rowIndex) * Self.rowHeight + 1,
+                width: max(0, processContentWidth() - iconX - Self.iconSize - 9),
+                height: Self.rowHeight - 2
+            )
         }
 
         private func beginResizeIfNeeded(kind: ProcessListSurfaceKind, at point: NSPoint) -> Bool {
@@ -1067,10 +1129,43 @@ struct ProcessOutlineView: NSViewRepresentable {
             else {
                 return nil
             }
+            if let cellTooltip = clippedCellTooltip(in: kind, at: point, rowIndex: rowIndex, record: record) {
+                return cellTooltip
+            }
+            guard kind == .processRows else { return nil }
             let path = record.executablePath ?? ""
             scheduleCommandLineLookup(for: record.id)
-            let commandLine = commandLineCache[record.id] ?? path
-            return "Path: \(path.isEmpty ? "—" : path)\nCommand Line: \(commandLine.isEmpty ? "—" : commandLine)"
+            var sections = ["Path:\n    \(path.isEmpty ? "—" : path)"]
+            if let commandLine = record.commandLine ?? commandLineCache[record.id], !commandLine.isEmpty {
+                sections.append("Command Line:\n    \(commandLine)")
+            }
+            return sections.joined(separator: "\n")
+        }
+
+        private func clippedCellTooltip(in kind: ProcessListSurfaceKind, at point: NSPoint, rowIndex: Int, record: ProcessRecord) -> String? {
+            switch kind {
+            case .processRows:
+                let row = visibleRows[rowIndex]
+                let rect = processTextRect(for: row, rowIndex: rowIndex)
+                guard rect.contains(point) else { return nil }
+                return clippedTooltipText(record.name, in: rect, rightAligned: false)
+            case .metricsRows:
+                guard let column = metricColumn(at: point.x),
+                      let rect = metricCellRect(for: column, rowIndex: rowIndex)?.insetBy(dx: 4, dy: 1),
+                      rect.contains(point) else { return nil }
+                return clippedTooltipText(column.string(for: record), in: rect, rightAligned: column.isRightAligned)
+            default:
+                return nil
+            }
+        }
+
+        private func clippedTooltipText(_ text: String, in rect: NSRect, rightAligned: Bool) -> String? {
+            guard !text.isEmpty else { return nil }
+            let font: NSFont = rightAligned
+                ? .monospacedDigitSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+                : .systemFont(ofSize: NSFont.smallSystemFontSize)
+            let textWidth = ceil((text as NSString).size(withAttributes: [.font: font]).width) + 4
+            return textWidth > rect.width + 0.5 ? text : nil
         }
 
         private func scheduleCommandLineLookup(for id: ProcessID) {
@@ -1079,7 +1174,11 @@ struct ProcessOutlineView: NSViewRepresentable {
             let data = model.data
             Task { @MainActor in
                 let commandLine = (try? await data.commandLine(of: id)) ?? ""
-                self.commandLineCache[id] = commandLine
+                if commandLine.isEmpty {
+                    self.commandLineCache.removeValue(forKey: id)
+                } else {
+                    self.commandLineCache[id] = commandLine
+                }
                 self.commandLineInFlight.remove(id)
             }
         }
@@ -1120,6 +1219,9 @@ struct ProcessOutlineView: NSViewRepresentable {
         @objc private func menuSuspendResume(_ sender: Any?) { emit(.suspendResume) }
         @objc private func menuBringToFront(_ sender: Any?) { emit(.bringToFront) }
         @objc private func menuRestart(_ sender: Any?) { emit(.restart) }
+        @objc private func menuSample(_ sender: Any?) { emit(.sample) }
+        @objc private func menuSearchOnline(_ sender: Any?) { emit(.searchOnline) }
+        @objc private func menuCheckVirusTotal(_ sender: Any?) { emit(.checkVirusTotal) }
         @objc private func menuProperties(_ sender: Any?) { emit(.properties) }
         @objc private func menuCopy(_ sender: Any?) { emit(.copy) }
 
@@ -1465,7 +1567,7 @@ final class ProcessListSurfaceView: NSView {
     }
 
     private func updateTooltip(for event: NSEvent) {
-        guard kind == .processRows else {
+        guard kind == .processRows || kind == .metricsRows else {
             instantTooltip.hide()
             return
         }
@@ -1506,6 +1608,7 @@ private final class ProcessInstantTooltip {
     private let maxWidth: CGFloat = 720
     private let horizontalPadding: CGFloat = 10
     private let verticalPadding: CGFloat = 7
+    private let valueIndent: CGFloat = 24
     private let label = NSTextField(labelWithString: "")
     private let container = NSView(frame: .zero)
     private var window: NSWindow?
@@ -1534,12 +1637,14 @@ private final class ProcessInstantTooltip {
         guard let sourceWindow = view.window else { return }
         sourceView = view
         startVisibilityTimer()
-        let size = tooltipSize(for: text)
-        label.stringValue = text
+        let attributedText = attributedTooltip(for: text)
+        let contentWidth = tooltipContentWidth(for: text)
+        let size = tooltipSize(for: attributedText, contentWidth: contentWidth)
+        label.attributedStringValue = attributedText
         label.frame = NSRect(
             x: horizontalPadding,
             y: verticalPadding,
-            width: size.width - horizontalPadding * 2,
+            width: contentWidth,
             height: size.height - verticalPadding * 2
         )
         container.frame = NSRect(origin: .zero, size: size)
@@ -1548,7 +1653,7 @@ private final class ProcessInstantTooltip {
         window = tooltipWindow
         tooltipWindow.setContentSize(size)
         let screenPoint = sourceWindow.convertPoint(toScreen: event.locationInWindow)
-        tooltipWindow.setFrameOrigin(NSPoint(x: screenPoint.x + 14, y: screenPoint.y - size.height - 16))
+        tooltipWindow.setFrameOrigin(clampedOrigin(near: screenPoint, size: size, screen: sourceWindow.screen ?? NSScreen.main))
         tooltipWindow.orderFront(nil)
     }
 
@@ -1596,16 +1701,84 @@ private final class ProcessInstantTooltip {
         return tooltipWindow
     }
 
-    private func tooltipSize(for text: String) -> NSSize {
-        let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)]
-        let bounds = (text as NSString).boundingRect(
-            with: NSSize(width: maxWidth - horizontalPadding * 2, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: attributes
-        )
+    private func attributedTooltip(for text: String) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        let lines = text.components(separatedBy: "\n")
+        for (index, line) in lines.enumerated() {
+            if index > 0 {
+                result.append(NSAttributedString(string: "\n"))
+            }
+            let isValue = line.hasPrefix("    ")
+            let displayLine = isValue ? String(line.drop { $0 == " " }) : line
+            let paragraph = NSMutableParagraphStyle()
+            if isValue {
+                paragraph.lineBreakMode = .byCharWrapping
+                paragraph.firstLineHeadIndent = valueIndent
+                paragraph.headIndent = valueIndent
+            } else {
+                paragraph.lineBreakMode = .byClipping
+            }
+            result.append(NSAttributedString(
+                string: displayLine,
+                attributes: [
+                    .font: NSFont.systemFont(ofSize: NSFont.systemFontSize),
+                    .foregroundColor: NSColor.labelColor,
+                    .paragraphStyle: paragraph,
+                ]
+            ))
+        }
+        return result
+    }
+
+    private func tooltipContentWidth(for text: String) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: NSFont.systemFontSize)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        let maxContentWidth = maxWidth - horizontalPadding * 2
+        let minimumLabelWidth = max(labelWidth("Path:"), labelWidth("Command Line:"))
+        var width: CGFloat = minimumLabelWidth
+        for line in text.components(separatedBy: "\n") {
+            let isValue = line.hasPrefix("    ")
+            let displayLine = isValue ? String(line.drop { $0 == " " }) : line
+            let textWidth = ceil((displayLine as NSString).size(withAttributes: attributes).width) + 4
+            width = max(width, textWidth + (isValue ? valueIndent : 0))
+        }
+        return min(maxContentWidth, max(1, width))
+    }
+
+    private func labelWidth(_ text: String) -> CGFloat {
+        ceil((text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize)]).width)
+    }
+
+    private func tooltipSize(for text: NSAttributedString, contentWidth: CGFloat) -> NSSize {
+        let bounds = usedRect(for: text, contentWidth: contentWidth)
         return NSSize(
-            width: ceil(bounds.width) + horizontalPadding * 2,
+            width: contentWidth + horizontalPadding * 2,
             height: ceil(bounds.height) + verticalPadding * 2
         )
+    }
+
+    private func usedRect(for text: NSAttributedString, contentWidth: CGFloat) -> NSRect {
+        let storage = NSTextStorage(attributedString: text)
+        let layout = NSLayoutManager()
+        let container = NSTextContainer(size: NSSize(width: contentWidth, height: .greatestFiniteMagnitude))
+        container.lineBreakMode = .byWordWrapping
+        container.lineFragmentPadding = 0
+        layout.addTextContainer(container)
+        storage.addLayoutManager(layout)
+        layout.ensureLayout(for: container)
+        return layout.usedRect(for: container)
+    }
+
+    private func clampedOrigin(near point: NSPoint, size: NSSize, screen: NSScreen?) -> NSPoint {
+        let visible = screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let margin: CGFloat = 6
+        var x = point.x + 14
+        var y = point.y - size.height - 16
+        if y < visible.minY + margin {
+            y = point.y + 16
+        }
+        x = min(max(x, visible.minX + margin), visible.maxX - size.width - margin)
+        y = min(max(y, visible.minY + margin), visible.maxY - size.height - margin)
+        return NSPoint(x: x, y: y)
     }
 }

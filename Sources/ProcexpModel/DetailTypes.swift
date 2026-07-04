@@ -145,6 +145,8 @@ public struct SignatureInfo: Sendable, Codable, Hashable {
     public var isAdHoc: Bool
     public var sha256: String?
     public var virusTotal: VirusTotalResult?
+    public var validationErrorCode: Int32?
+    public var validationErrorMessage: String?
 
     public init(
         status: SigningStatus = .unverified,
@@ -154,7 +156,9 @@ public struct SignatureInfo: Sendable, Codable, Hashable {
         isPlatformBinary: Bool = false,
         isAdHoc: Bool = false,
         sha256: String? = nil,
-        virusTotal: VirusTotalResult? = nil
+        virusTotal: VirusTotalResult? = nil,
+        validationErrorCode: Int32? = nil,
+        validationErrorMessage: String? = nil
     ) {
         self.status = status
         self.teamID = teamID
@@ -164,6 +168,8 @@ public struct SignatureInfo: Sendable, Codable, Hashable {
         self.isAdHoc = isAdHoc
         self.sha256 = sha256
         self.virusTotal = virusTotal
+        self.validationErrorCode = validationErrorCode
+        self.validationErrorMessage = validationErrorMessage
     }
 
     /// Best single-line signer string for the "Verified Signer" column.
@@ -179,5 +185,12 @@ public struct SignatureInfo: Sendable, Codable, Hashable {
             if let team = teamID { return "Team \(team)" }
             return isAdHoc ? "(Ad-hoc signed)" : "(Signed)"
         }
+    }
+
+    public var publisherDescription: String? {
+        if isPlatformBinary { return "Apple (platform)" }
+        if let first = authority.first, !first.isEmpty { return first }
+        if let teamID, !teamID.isEmpty { return "Team \(teamID)" }
+        return nil
     }
 }

@@ -35,6 +35,11 @@ struct HardwareInfo: Sendable {
     var efficiencyCores: Int?         // hw.perflevel1.physicalcpu (Apple Silicon)
     var packages: Int                 // hw.packages (sockets)
     var cpuFrequencyHz: UInt64?       // hw.cpufrequency (0/absent on Apple Silicon)
+    var cacheLineSize: UInt64?
+    var l1InstructionCache: UInt64?
+    var l1DataCache: UInt64?
+    var l2Cache: UInt64?
+    var l3Cache: UInt64?
 
     // MARK: Memory
 
@@ -45,6 +50,8 @@ struct HardwareInfo: Sendable {
 
     var gpus: [GPUInfo]
     var bootVolume: VolumeInfo?
+    var volumes: [VolumeInfo]
+    var networkInterfaces: [NetworkInterfaceInfo]
 
     /// A Metal-enumerated graphics device.
     struct GPUInfo: Sendable, Identifiable {
@@ -55,6 +62,11 @@ struct HardwareInfo: Sendable {
         var lowPower: Bool
         var removable: Bool
         var headless: Bool
+        var registryID: UInt64
+        var maxThreadsPerThreadgroup: String
+        var maxBufferLength: UInt64
+        var argumentBuffersTier: String
+        var readWriteTextureTier: String
     }
 
     /// A mounted volume (currently the boot / root volume).
@@ -62,10 +74,25 @@ struct HardwareInfo: Sendable {
         var name: String
         var totalCapacity: UInt64
         var availableCapacity: UInt64
+        var formatDescription: String?
+        var isInternal: Bool?
+        var isRemovable: Bool?
+        var isEjectable: Bool?
+        var isReadOnly: Bool?
         /// Approximate media type. Internal Apple Silicon storage is always
         /// flash, so it is reported as "SSD"; probing rotational media on Intel
         /// externally is not attempted here.
         var mediaType: String
+    }
+
+    struct NetworkInterfaceInfo: Sendable, Identifiable {
+        var id: String { name }
+        var name: String
+        var families: [String]
+        var addresses: [String]
+        var isUp: Bool
+        var isRunning: Bool
+        var isLoopback: Bool
     }
 
     // MARK: - Cached accessor
@@ -113,6 +140,11 @@ private extension HardwareInfo {
         let eCores = sysctlUInt("hw.perflevel1.physicalcpu").map(Int.init)
         let packages = Int(sysctlUInt("hw.packages") ?? 1)
         let freq = sysctlUInt("hw.cpufrequency").flatMap { $0 == 0 ? nil : $0 }
+        let cacheLine = sysctlUInt("hw.cachelinesize")
+        let l1i = sysctlUInt("hw.l1icachesize")
+        let l1d = sysctlUInt("hw.l1dcachesize")
+        let l2 = sysctlUInt("hw.l2cachesize")
+        let l3 = sysctlUInt("hw.l3cachesize")
 
         // --- Memory ---
         let memSize = sysctlUInt("hw.memsize") ?? processInfo.physicalMemory
@@ -123,6 +155,9 @@ private extension HardwareInfo {
 
         // --- Boot volume ---
         let bootVolume = gatherBootVolume()
+        let volumes = gatherVolumes(bootVolume: bootVolume)
+
+        let interfaces = gatherNetworkInterfaces()
 
         return HardwareInfo(
             machineModel: model,
@@ -136,10 +171,17 @@ private extension HardwareInfo {
             efficiencyCores: eCores,
             packages: max(packages, 1),
             cpuFrequencyHz: freq,
+            cacheLineSize: cacheLine,
+            l1InstructionCache: l1i,
+            l1DataCache: l1d,
+            l2Cache: l2,
+            l3Cache: l3,
             physicalMemory: memSize,
             pageSize: pageSize,
             gpus: gpus,
-            bootVolume: bootVolume
+            bootVolume: bootVolume,
+            volumes: volumes,
+            networkInterfaces: interfaces
         )
     }
 
@@ -168,21 +210,73 @@ private extension HardwareInfo {
                 unifiedMemory: device.hasUnifiedMemory,
                 lowPower: device.isLowPower,
                 removable: device.isRemovable,
-                headless: device.isHeadless
+                headless: device.isHeadless,
+                registryID: device.registryID,
+                maxThreadsPerThreadgroup: "\(device.maxThreadsPerThreadgroup.width) x \(device.maxThreadsPerThreadgroup.height) x \(device.maxThreadsPerThreadgroup.depth)",
+                maxBufferLength: UInt64(device.maxBufferLength),
+                argumentBuffersTier: argumentBuffersTierName(device.argumentBuffersSupport),
+                readWriteTextureTier: readWriteTextureTierName(device.readWriteTextureSupport)
             )
         }
     }
 
+    static func argumentBuffersTierName(_ tier: MTLArgumentBuffersTier) -> String {
+        switch tier {
+        case .tier1: return "Tier 1"
+        case .tier2: return "Tier 2"
+        @unknown default: return "Tier \(tier.rawValue)"
+        }
+    }
+
+    static func readWriteTextureTierName(_ tier: MTLReadWriteTextureTier) -> String {
+        switch tier {
+        case .tierNone: return "None"
+        case .tier1: return "Tier 1"
+        case .tier2: return "Tier 2"
+        @unknown default: return "Tier \(tier.rawValue)"
+        }
+    }
+
     static func gatherBootVolume() -> VolumeInfo? {
-        let url = URL(fileURLWithPath: "/")
+        volumeInfo(for: URL(fileURLWithPath: "/"), defaultName: "Macintosh HD")
+    }
+
+    static func gatherVolumes(bootVolume: VolumeInfo?) -> [VolumeInfo] {
+        let keys: [URLResourceKey] = [.volumeNameKey, .volumeIsInternalKey, .volumeIsReadOnlyKey]
+        let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: []) ?? []
+        var volumes: [VolumeInfo] = []
+        if let bootVolume { volumes.append(bootVolume) }
+        volumes += urls
+            .compactMap { volumeInfo(for: $0, defaultName: $0.lastPathComponent) }
+            .filter { volume in
+                guard volume.totalCapacity > 0 else { return false }
+                guard volume.isInternal != true else { return false }
+                guard volume.isRemovable == true || volume.isEjectable == true else { return false }
+                return volume.totalCapacity >= 8 * 1024 * 1024 * 1024
+            }
+        var seen = Set<String>()
+        return volumes.filter { volume in
+            let key = "\(volume.name)|\(volume.totalCapacity)|\(volume.isInternal == true)"
+            guard !seen.contains(key) else { return false }
+            seen.insert(key)
+            return true
+        }
+    }
+
+    static func volumeInfo(for url: URL, defaultName: String) -> VolumeInfo? {
         let keys: Set<URLResourceKey> = [
             .volumeNameKey,
             .volumeTotalCapacityKey,
-            .volumeAvailableCapacityKey
+            .volumeAvailableCapacityKey,
+            .volumeLocalizedFormatDescriptionKey,
+            .volumeIsInternalKey,
+            .volumeIsRemovableKey,
+            .volumeIsEjectableKey,
+            .volumeIsReadOnlyKey
         ]
         guard let values = try? url.resourceValues(forKeys: keys) else { return nil }
 
-        let name = values.volumeName ?? "Macintosh HD"
+        let name = values.volumeName ?? defaultName
         let total = UInt64(values.volumeTotalCapacity ?? 0)
         let available = UInt64(values.volumeAvailableCapacity ?? 0)
 
@@ -195,8 +289,63 @@ private extension HardwareInfo {
             name: name,
             totalCapacity: total,
             availableCapacity: available,
+            formatDescription: values.volumeLocalizedFormatDescription,
+            isInternal: values.volumeIsInternal,
+            isRemovable: values.volumeIsRemovable,
+            isEjectable: values.volumeIsEjectable,
+            isReadOnly: values.volumeIsReadOnly,
             mediaType: mediaType
         )
+    }
+
+    static func gatherNetworkInterfaces() -> [NetworkInterfaceInfo] {
+        var pointer: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&pointer) == 0, let first = pointer else { return [] }
+        defer { freeifaddrs(first) }
+
+        var byName: [String: NetworkInterfaceInfo] = [:]
+        var current: UnsafeMutablePointer<ifaddrs>? = first
+        while let item = current {
+            defer { current = item.pointee.ifa_next }
+            guard let address = item.pointee.ifa_addr else { continue }
+            let family = Int32(address.pointee.sa_family)
+            guard family == AF_INET || family == AF_INET6 else { continue }
+
+            let name = String(cString: item.pointee.ifa_name)
+            let flags = Int32(item.pointee.ifa_flags)
+            guard let formatted = formatAddress(address, family: family) else { continue }
+            let isLoopback = flags & IFF_LOOPBACK != 0
+            if isLoopback { continue }
+            let familyName = family == AF_INET ? "IPv4" : "IPv6"
+            if var existing = byName[name] {
+                if !existing.families.contains(familyName) { existing.families.append(familyName) }
+                if !existing.addresses.contains(formatted) { existing.addresses.append(formatted) }
+                existing.isUp = existing.isUp || flags & IFF_UP != 0
+                existing.isRunning = existing.isRunning || flags & IFF_RUNNING != 0
+                byName[name] = existing
+            } else {
+                byName[name] = NetworkInterfaceInfo(
+                    name: name,
+                    families: [familyName],
+                    addresses: [formatted],
+                    isUp: flags & IFF_UP != 0,
+                    isRunning: flags & IFF_RUNNING != 0,
+                    isLoopback: false
+                )
+            }
+        }
+        return byName.values
+            .filter { $0.isUp || $0.isRunning }
+            .sorted { $0.name < $1.name }
+    }
+
+    static func formatAddress(_ address: UnsafePointer<sockaddr>, family: Int32) -> String? {
+        var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+        let length = family == AF_INET
+            ? socklen_t(MemoryLayout<sockaddr_in>.size)
+            : socklen_t(MemoryLayout<sockaddr_in6>.size)
+        let status = getnameinfo(address, length, &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST)
+        return status == 0 ? String(cString: host) : nil
     }
 
     // MARK: sysctl helpers

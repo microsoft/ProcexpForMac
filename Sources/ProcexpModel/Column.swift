@@ -105,28 +105,46 @@ public enum Column: String, CaseIterable, Sendable, Codable {
         }
     }
 
+    /// Columns backed by supportable macOS data sources in this app. Unsupported
+    /// Windows-only/private-API columns stay decodable for old settings but are
+    /// removed from menus, saved layouts, and active column sets.
+    public var isSupportedOnMac: Bool {
+        switch self {
+        case .network, .gpu, .gpuMemory, .integrity:
+            return false
+        default:
+            return true
+        }
+    }
+
+    public static var supportedOnMac: [Column] {
+        allCases.filter(\.isSupportedOnMac)
+    }
+
+    public static let pinnedOnMac: [Column] = [.name, .pid]
+
     /// Formats the display string for this column for a given process.
     public func string(for p: ProcessRecord) -> String {
         switch self {
         case .name:         return p.name
         case .pid:          return String(p.id.pid)
         case .ppid:         return p.parent.map { String($0.pid) } ?? ""
-        case .cpu:          return p.cpuPercent < 0.01 ? "" : String(format: "%.2f", p.cpuPercent)
-        case .cpuTime:      return ByteFormat.duration(nanos: p.cpuTime)
-        case .privateBytes: return ByteFormat.bytes(p.physFootprint ?? p.residentSize)
-        case .workingSet:   return ByteFormat.bytes(p.residentSize)
-        case .virtualSize:  return ByteFormat.bytes(p.virtualSize)
-        case .threads:      return String(p.threadCount)
+        case .cpu:          return p.hasTaskInfo ? (p.cpuPercent < 0.01 ? "" : String(format: "%.2f", p.cpuPercent)) : ""
+        case .cpuTime:      return p.hasTaskInfo ? ByteFormat.duration(nanos: p.cpuTime) : ""
+        case .privateBytes: return p.hasTaskInfo ? ByteFormat.bytes(p.physFootprint ?? p.residentSize) : ""
+        case .workingSet:   return p.hasTaskInfo ? ByteFormat.bytes(p.residentSize) : ""
+        case .virtualSize:  return p.hasTaskInfo ? ByteFormat.bytes(p.virtualSize) : ""
+        case .threads:      return p.hasTaskInfo ? String(p.threadCount) : ""
         case .handles:      return p.fileDescriptorCount.map(String.init) ?? ""
         case .description:  return p.displayDescription ?? ""
         case .company:      return p.companyName ?? ""
         case .version:      return p.version ?? ""
         case .path:         return p.executablePath ?? ""
-        case .commandLine:  return p.executablePath ?? ""
+        case .commandLine:  return p.commandLine ?? ""
         case .user:         return p.userName ?? String(p.uid)
         case .session:      return p.sessionTTY ?? ""
         case .startTime:    return ByteFormat.dateTime(p.startTimeDate)
-        case .priority:     return String(p.priority)
+        case .priority:     return p.hasTaskInfo ? String(p.priority) : ""
         case .nice:         return String(p.nice)
         case .ioRead:       return p.diskBytesRead.map(ByteFormat.bytes) ?? ""
         case .ioWrite:      return p.diskBytesWritten.map(ByteFormat.bytes) ?? ""
@@ -148,22 +166,22 @@ public enum Column: String, CaseIterable, Sendable, Codable {
         case .name:         return .text(p.name)
         case .pid:          return .number(Double(p.id.pid))
         case .ppid:         return .number(Double(p.parent?.pid ?? -1))
-        case .cpu:          return .number(p.cpuPercent)
-        case .cpuTime:      return .number(Double(p.cpuTime))
-        case .privateBytes: return .number(Double(p.physFootprint ?? p.residentSize))
-        case .workingSet:   return .number(Double(p.residentSize))
-        case .virtualSize:  return .number(Double(p.virtualSize))
-        case .threads:      return .number(Double(p.threadCount))
+        case .cpu:          return p.hasTaskInfo ? .number(p.cpuPercent) : .none
+        case .cpuTime:      return p.hasTaskInfo ? .number(Double(p.cpuTime)) : .none
+        case .privateBytes: return p.hasTaskInfo ? .number(Double(p.physFootprint ?? p.residentSize)) : .none
+        case .workingSet:   return p.hasTaskInfo ? .number(Double(p.residentSize)) : .none
+        case .virtualSize:  return p.hasTaskInfo ? .number(Double(p.virtualSize)) : .none
+        case .threads:      return p.hasTaskInfo ? .number(Double(p.threadCount)) : .none
         case .handles:      return .number(Double(p.fileDescriptorCount ?? 0))
         case .description:  return .text(p.displayDescription ?? "")
         case .company:      return .text(p.companyName ?? "")
         case .version:      return .text(p.version ?? "")
         case .path:         return .text(p.executablePath ?? "")
-        case .commandLine:  return .text(p.executablePath ?? "")
+        case .commandLine:  return .text(p.commandLine ?? "")
         case .user:         return .text(p.userName ?? String(p.uid))
         case .session:      return .text(p.sessionTTY ?? "")
         case .startTime:    return .number(p.startTimeDate.timeIntervalSince1970)
-        case .priority:     return .number(Double(p.priority))
+        case .priority:     return p.hasTaskInfo ? .number(Double(p.priority)) : .none
         case .nice:         return .number(Double(p.nice))
         case .ioRead:       return .number(Double(p.diskBytesRead ?? 0))
         case .ioWrite:      return .number(Double(p.diskBytesWritten ?? 0))
@@ -181,6 +199,10 @@ public enum Column: String, CaseIterable, Sendable, Codable {
     public static let defaultColumns: [Column] = [
         .name, .pid, .cpu, .privateBytes, .workingSet, .description, .company, .signature
     ]
+}
+
+private extension ProcessRecord {
+    var hasTaskInfo: Bool { !flags.contains(.limitedTaskInfo) }
 }
 
 /// Pure formatting helpers used by column rendering (no locale surprises for tests).

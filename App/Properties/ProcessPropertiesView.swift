@@ -93,6 +93,7 @@ struct ProcessPropertiesView: View {
             while !Task.isCancelled {
                 await detail.refreshDynamic(
                     pid: pid,
+                    record: model.snapshot.processes[pid],
                     data: model.data,
                     network: model.network,
                     highlightDuration: model.differenceHighlightDuration

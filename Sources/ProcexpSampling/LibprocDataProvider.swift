@@ -176,7 +176,9 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
         var pageFaults: UInt64? = nil
         var contextSwitches: UInt64? = nil
         var priority: Int32 = 0
+        var hasTaskInfo = false
         if let ti = Libproc.taskInfo(pid) {
+            hasTaskInfo = true
             cpuTime = ti.pti_total_user &+ ti.pti_total_system
             threadCount = Int(ti.pti_threadnum)
             residentSize = ti.pti_resident_size
@@ -202,6 +204,7 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
         var flags: ProcessFlags = []
         if uid == myUID { flags.insert(.ownProcess) }
         if ppid == 1 && uid == 0 { flags.insert(.service) }
+        if !hasTaskInfo { flags.insert(.limitedTaskInfo) }
 
         // Static bundle metadata (version / description / company). Cached by
         // executable path so repeat samples don't re-read Info.plist.
@@ -262,7 +265,9 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
         var pageFaults: UInt64? = nil
         var contextSwitches: UInt64? = nil
         var priority: Int32 = 0
+        var hasTaskInfo = false
         if let ti = Libproc.taskInfo(pid) {
+            hasTaskInfo = true
             cpuTime = ti.pti_total_user &+ ti.pti_total_system
             threadCount = Int(ti.pti_threadnum)
             residentSize = ti.pti_resident_size
@@ -275,6 +280,7 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
         var flags: ProcessFlags = []
         if uid == myUID { flags.insert(.ownProcess) }
         if ppid == 1 && uid == 0 { flags.insert(.service) }
+        if !hasTaskInfo { flags.insert(.limitedTaskInfo) }
 
         let meta = path.map { BundleMetadataCache.shared.metadata(forExecutablePath: $0) }
 
@@ -332,7 +338,7 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
                 id: UInt64(index),
                 cpuPercent: 0,
                 cpuTime: 0,
-                state: "unknown",
+                state: "",
                 startAddress: nil,
                 startSymbol: nil,
                 basePriority: ti.pti_priority

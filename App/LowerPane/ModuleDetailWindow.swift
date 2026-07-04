@@ -209,9 +209,16 @@ struct ModuleDetailView: View {
                     Text("Verifying signature…").foregroundStyle(.secondary)
                 }
             } else if let signature {
+                detail("Status", signature.status.rawValue.capitalized)
                 detail("Signer", signature.signerDescription)
+                if let publisher = signature.publisherDescription, !publisher.isEmpty {
+                    detail("Publisher", publisher)
+                }
                 if let team = signature.teamID, !team.isEmpty {
                     detail("Team ID", team)
+                }
+                if let reason = signature.validationErrorMessage, !reason.isEmpty {
+                    detail("Validation", reason, scroll: true)
                 }
                 if !signature.authority.isEmpty {
                     detail("Authority", signature.authority.joined(separator: " › "), scroll: true)
@@ -235,6 +242,12 @@ struct ModuleDetailView: View {
             }
 
             HStack(spacing: 10) {
+                Button {
+                    model.searchOnlineForImage(name: id.name, path: id.path)
+                } label: {
+                    Label("Search Online", systemImage: "magnifyingglass")
+                }
+
                 Button {
                     NSWorkspace.shared.activateFileViewerSelecting([fileURL])
                 } label: {

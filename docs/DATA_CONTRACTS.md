@@ -1,8 +1,7 @@
 # Shared Data Contracts (W0 — `ProcexpModel`)
 
-These are the **frozen interfaces** every workstream builds against. W0 ships these first
-plus a `MockDataProvider`, so all UI and feature workstreams can compile and run before the
-real sampling engine exists. Treat changes here as breaking — coordinate before editing.
+These are the **frozen interfaces** every workstream builds against. Treat changes here as
+breaking — coordinate before editing.
 
 > Swift shown is the **intended shape**; W0's owner finalizes exact types. Keep value types
 > `Sendable` and (where noted) `Codable`.
@@ -287,15 +286,7 @@ public protocol AutostartProviding: Sendable {               // W12
 }
 ```
 
-## 8. Mock (ships in W0)
-
-`MockDataProvider` conforms to `ProcessDataProviding`, `NetworkProviding`,
-`SystemStatsProviding`, `SigningProviding`, `AutostartProviding`. It generates ~150 fake
-processes in a realistic tree, animates CPU/memory/I-O each tick, occasionally spawns/kills
-a process (to exercise diff highlighting), and returns plausible threads/modules/fds/sockets
-so **every UI workstream is fully runnable without the real engine.**
-
-## 9. App-level observable state (owned by App target, referenced by contracts)
+## 8. App-level observable state (owned by App target, referenced by contracts)
 
 ```swift
 @Observable public final class AppModel {

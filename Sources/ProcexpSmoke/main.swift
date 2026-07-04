@@ -27,12 +27,6 @@ func check(_ condition: Bool, _ message: String) {
 
 print("ProcexpModel W0 smoke check")
 
-let provider = MockDataProvider()
-let snap = await provider.snapshot()
-check(snap.processes.count >= 140, "mock seeds >= 140 processes (got \(snap.processes.count))")
-check(snap.roots.contains { $0.pid == 1 }, "launchd (pid 1) is a root")
-check(!snap.system.perCoreCPUPercent.isEmpty, "system stats include per-core CPU")
-
 // Tree builder
 let root = ProcessID(pid: 1, startTime: 0)
 let child = ProcessID(pid: 2, startTime: 0)
@@ -44,12 +38,26 @@ let (roots, children) = ProcessTreeBuilder.build(from: procs)
 check(roots == [root], "tree builder finds single root")
 check(children[root] == [child], "tree builder links child to parent")
 
-// Evolution / diff
-let before = await provider.snapshot()
-var after = before
-for await s in provider.snapshots(interval: 0.0) { after = s; break }
+// Snapshot diff
+let added = ProcessID(pid: 3, startTime: 0)
+let before = ProcessSnapshot(
+    timestamp: .distantPast,
+    interval: 1,
+    processes: [root: ProcessRecord(id: root, name: "launchd"), child: ProcessRecord(id: child, name: "child")],
+    roots: [root, child],
+    children: [:],
+    system: .zero
+)
+let after = ProcessSnapshot(
+    timestamp: Date(),
+    interval: 1,
+    processes: [root: ProcessRecord(id: root, name: "launchd", cpuPercent: 1), added: ProcessRecord(id: added, name: "added")],
+    roots: [root, added],
+    children: [:],
+    system: .zero
+)
 let diff = SnapshotDiff.between(before, after)
-check(diff.added.count + diff.changed.count > 0, "world evolves between snapshots")
+check(diff.added == [added] && diff.removed == [child] && diff.changed == [root], "snapshot diff detects added/removed/changed")
 
 // History ring
 var ring = HistoryRing<Int>(capacity: 3)
@@ -68,15 +76,6 @@ check(Column.cpu.sortValue(for: p) == .number(12.5), "CPU column sort key")
 let bg = ProcessColorRule.background(for: [.ownProcess, .newProcess], rules: ProcessColorRule.defaults, darkMode: false)
 let newColor = ProcessColorRule.defaults.first { $0.flag == .newProcess }!.backgroundLight
 check(bg == newColor, "new-process color wins over own-process color")
-
-// Detail providers
-let anApp = snap.processes.values.first { $0.flags.contains(.ownProcess) }!
-let threads = try await provider.threads(of: anApp.id)
-let modules = try await provider.modules(of: anApp.id)
-let fds = try await provider.fileDescriptors(of: anApp.id)
-check(threads.count == anApp.threadCount, "thread detail count matches process")
-check(!modules.isEmpty, "modules returned for a process")
-check(!fds.isEmpty, "file descriptors returned for a process")
 
 // ---------------------------------------------------------------------------
 // LIVE checks against the real machine (W1/W4/W7/W9/W12/W8).
