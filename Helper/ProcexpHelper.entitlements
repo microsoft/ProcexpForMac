@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      Entitlements for the ProcexpHelper root daemon (W13 signing).
+
+      task_for_pid on other processes normally requires either running as root
+      (which this daemon does) or the debugger entitlement below. Under the
+      Hardened Runtime the debugger entitlement is what lets the signed helper
+      obtain task ports for cross-user thread sampling.
+    -->
+    <key>com.apple.security.cs.debugger</key>
+    <true/>
+</dict>
+</plist>

@@ -1,0 +1,5 @@
+# Release / build artifacts produced by Scripts/build_release.sh + make_icon.sh
+.DS_Store
+build/
+.build/
+.swiftpm/

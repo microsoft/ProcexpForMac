@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      launchd property list for the ProcexpMac privileged root helper.
+
+      Embedded at:  ProcessExplorer.app/Contents/Library/LaunchDaemons/
+                    com.sysinternals.procexpmac.helper.plist
+      Registered by SMAppService.daemon(plistName: "com.sysinternals.procexpmac.helper.plist").
+
+      The daemon is launched on demand by launchd when the app opens the
+      mach service, and it runs as root.
+    -->
+    <key>Label</key>
+    <string>com.sysinternals.procexpmac.helper</string>
+
+    <!--
+      BundleProgram is relative to the app bundle. The helper executable is
+      embedded next to this plist under Contents/Library/LaunchDaemons.
+      (Xcode "Copy Files" phase, destination = Wrapper, subpath =
+       Contents/Library/LaunchDaemons.)
+    -->
+    <key>BundleProgram</key>
+    <string>Contents/Library/LaunchDaemons/com.sysinternals.procexpmac.helper</string>
+
+    <!-- The mach service the app's NSXPCConnection connects to. -->
+    <key>MachServices</key>
+    <dict>
+        <key>com.sysinternals.procexpmac.helper</key>
+        <true/>
+    </dict>
+
+    <!-- Launch on demand; exit when idle to minimise the root footprint. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!--
+      W13: pin the client (main app) so only it may talk to the daemon. Requires
+      the app to be Developer-ID signed with a Team ID.
+
+      <key>AssociatedBundleIdentifiers</key>
+      <array><string>com.sysinternals.procexpmac</string></array>
+    -->
+</dict>
+</plist>

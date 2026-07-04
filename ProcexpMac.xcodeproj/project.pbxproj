@@ -1,0 +1,573 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		089E906EB8ED83DB143D2CF7 /* HandleDetailWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D3924C3D913420F98E5A99 /* HandleDetailWindow.swift */; };
+		098D56F32D25714B3A05EB3B /* ProcexpNetwork in Frameworks */ = {isa = PBXBuildFile; productRef = FC52D3673A51A1FDDEA210BE /* ProcexpNetwork */; };
+		09E030C44A7BCA9E328D9B70 /* ProcexpPrivileged in Frameworks */ = {isa = PBXBuildFile; productRef = 36A8343241084AB5CED54F5D /* ProcexpPrivileged */; };
+		1A4F27678F64C3D76D9D775C /* Color+RGBA.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2298E34CD146F2B6E7052CAF /* Color+RGBA.swift */; };
+		1E9917DD903F74F0BCB27F4B /* BorderlessGridTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BD52021B86E1714A50FAFE2 /* BorderlessGridTableView.swift */; };
+		1EC4486198C20CAFEA1A0FE1 /* PropertiesDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = C50A39FD8344D5108A84C1A8 /* PropertiesDetail.swift */; };
+		298CEBCC3B043842AC91B57E /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E529147E029D97865B3FABAB /* AboutView.swift */; };
+		2B4C7425EF6A6480EC51E22A /* ProcexpActions in Frameworks */ = {isa = PBXBuildFile; productRef = 5D709654A7513CB5C49F3F40 /* ProcexpActions */; };
+		3A6E3E957B966CA296256A6A /* AppMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96544DD01C1132F21A86E482 /* AppMenus.swift */; };
+		410F1DA55AEB3EA0F00863D3 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 457C7FC823D7001F5D71F72B /* AppDelegate.swift */; };
+		43FEAD8E720BB4475D31BE4C /* PropertiesTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3886B33EB28F238487734CD /* PropertiesTabs.swift */; };
+		459F0583072F20CF25D601BE /* TableColumnPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 416C2D2841B290FF87708A18 /* TableColumnPersistence.swift */; };
+		48706B03CEC63989B9B840E9 /* ProcexpModel in Frameworks */ = {isa = PBXBuildFile; productRef = E5318BA0945504BE784DC8F3 /* ProcexpModel */; };
+		51FEE6302C1158FBF3710405 /* ModuleDetailWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F56D45DD790B0490B9EC284 /* ModuleDetailWindow.swift */; };
+		5450EC0AECB1E98166E56CA5 /* ProcessOutlineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C68781407FEE7BA7E907A50 /* ProcessOutlineView.swift */; };
+		56C373AE9CD25EB853AFB764 /* LowerPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D61055208CF97D8CC5C35F3 /* LowerPaneView.swift */; };
+		78B69064EE78CC4A70DA05EF /* ProcexpAutostart in Frameworks */ = {isa = PBXBuildFile; productRef = 03FA296B460CA85D8F1966C6 /* ProcexpAutostart */; };
+		7925C4B62944B2DCE9123D0F /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC7967893F5B0E5DCA051319 /* MenuBarController.swift */; };
+		830A372F557A95BFE5E098B6 /* ProcexpGraphs in Frameworks */ = {isa = PBXBuildFile; productRef = DC7CC98D32CC98839BB7A7EF /* ProcexpGraphs */; };
+		85D98989C04DF83833134AAD /* ProcexpSampling in Frameworks */ = {isa = PBXBuildFile; productRef = 661AABFB661CAA800D714E3C /* ProcexpSampling */; };
+		8E2D69764F702B12F4875AC2 /* ActionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC1CA38D9D44295D6C8D45AA /* ActionCoordinator.swift */; };
+		91A42F0EBD69B82C711794FF /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 958DC889CA7C5F6D0864E2CC /* SettingsStore.swift */; };
+		971AF9AE024E9D663FFF50FE /* MainWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ACD2ED5DDB1FB04A54BEAD8 /* MainWindowView.swift */; };
+		A5B9E71D78622EC6CC66D65F /* ProcexpApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F5D04369E1786B4002E861 /* ProcexpApp.swift */; };
+		A784D268FFC7D65ACB2C3328 /* SystemInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB9628C9809ACBDBD67EDB59 /* SystemInfoView.swift */; };
+		A7E8E0D8CA1FF45FC2C2DC52 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B22F8FD76F24B30E44E2125 /* ContentView.swift */; };
+		A96A1EEF196364F0CCEC6A3D /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4E45694445F4562413DA969 /* AppModel.swift */; };
+		B426BE9ADD7F8DEB4D8E912E /* HardwareInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92B8C0D94D141ABAB70A71EB /* HardwareInfo.swift */; };
+		BC488934F81C1EE1235C027A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B14E5FC9442AD87244D49463 /* Assets.xcassets */; };
+		C19339078A35FE74E2902A80 /* FindHandleDLLView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3D5AA97FD42E385C538B8D /* FindHandleDLLView.swift */; };
+		CAB8AE239F9077C4BA4F67B8 /* ProcexpSigning in Frameworks */ = {isa = PBXBuildFile; productRef = DE935370E22FEED55EAEE1D3 /* ProcexpSigning */; };
+		CCE38C236F051E7B67EE9845 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194AC9666EB23DBC2A417B9A /* SettingsView.swift */; };
+		D02E7A7F34617C12F17FF72F /* ProcessPropertiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 408ADD0BBBE5F54A27947245 /* ProcessPropertiesView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		194AC9666EB23DBC2A417B9A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		2298E34CD146F2B6E7052CAF /* Color+RGBA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+RGBA.swift"; sourceTree = "<group>"; };
+		2B22F8FD76F24B30E44E2125 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		2B3D5AA97FD42E385C538B8D /* FindHandleDLLView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindHandleDLLView.swift; sourceTree = "<group>"; };
+		2B5D685F8D93E2F9F42FED13 /* ProcexpMac */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ProcexpMac; path = .; sourceTree = SOURCE_ROOT; };
+		3BD52021B86E1714A50FAFE2 /* BorderlessGridTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BorderlessGridTableView.swift; sourceTree = "<group>"; };
+		408ADD0BBBE5F54A27947245 /* ProcessPropertiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessPropertiesView.swift; sourceTree = "<group>"; };
+		416C2D2841B290FF87708A18 /* TableColumnPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TableColumnPersistence.swift; sourceTree = "<group>"; };
+		457C7FC823D7001F5D71F72B /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		46D3924C3D913420F98E5A99 /* HandleDetailWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandleDetailWindow.swift; sourceTree = "<group>"; };
+		4ACD2ED5DDB1FB04A54BEAD8 /* MainWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowView.swift; sourceTree = "<group>"; };
+		4C68781407FEE7BA7E907A50 /* ProcessOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessOutlineView.swift; sourceTree = "<group>"; };
+		54F5D04369E1786B4002E861 /* ProcexpApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcexpApp.swift; sourceTree = "<group>"; };
+		6D61055208CF97D8CC5C35F3 /* LowerPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LowerPaneView.swift; sourceTree = "<group>"; };
+		6F56D45DD790B0490B9EC284 /* ModuleDetailWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleDetailWindow.swift; sourceTree = "<group>"; };
+		7C462D79EF7A5A7D75C07744 /* ProcexpMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ProcexpMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		92B8C0D94D141ABAB70A71EB /* HardwareInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareInfo.swift; sourceTree = "<group>"; };
+		958DC889CA7C5F6D0864E2CC /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
+		96544DD01C1132F21A86E482 /* AppMenus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMenus.swift; sourceTree = "<group>"; };
+		B14E5FC9442AD87244D49463 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C50A39FD8344D5108A84C1A8 /* PropertiesDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertiesDetail.swift; sourceTree = "<group>"; };
+		E4E45694445F4562413DA969 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		E529147E029D97865B3FABAB /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
+		EB9628C9809ACBDBD67EDB59 /* SystemInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemInfoView.swift; sourceTree = "<group>"; };
+		EC7967893F5B0E5DCA051319 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		F3886B33EB28F238487734CD /* PropertiesTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertiesTabs.swift; sourceTree = "<group>"; };
+		FC1CA38D9D44295D6C8D45AA /* ActionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionCoordinator.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		0DB9932A8A2B0E7F71F17BBE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				48706B03CEC63989B9B840E9 /* ProcexpModel in Frameworks */,
+				85D98989C04DF83833134AAD /* ProcexpSampling in Frameworks */,
+				CAB8AE239F9077C4BA4F67B8 /* ProcexpSigning in Frameworks */,
+				098D56F32D25714B3A05EB3B /* ProcexpNetwork in Frameworks */,
+				830A372F557A95BFE5E098B6 /* ProcexpGraphs in Frameworks */,
+				78B69064EE78CC4A70DA05EF /* ProcexpAutostart in Frameworks */,
+				2B4C7425EF6A6480EC51E22A /* ProcexpActions in Frameworks */,
+				09E030C44A7BCA9E328D9B70 /* ProcexpPrivileged in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		11C4A563717874075B510E93 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				2B5D685F8D93E2F9F42FED13 /* ProcexpMac */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		222931DF41FD8AE5F35037EA /* MainWindow */ = {
+			isa = PBXGroup;
+			children = (
+				2B3D5AA97FD42E385C538B8D /* FindHandleDLLView.swift */,
+				4ACD2ED5DDB1FB04A54BEAD8 /* MainWindowView.swift */,
+				4C68781407FEE7BA7E907A50 /* ProcessOutlineView.swift */,
+			);
+			path = MainWindow;
+			sourceTree = "<group>";
+		};
+		5016D1B40D28FEC9F2BFA5BF /* About */ = {
+			isa = PBXGroup;
+			children = (
+				E529147E029D97865B3FABAB /* AboutView.swift */,
+			);
+			path = About;
+			sourceTree = "<group>";
+		};
+		62A83063B952A2FA22C8CBB6 = {
+			isa = PBXGroup;
+			children = (
+				F3F02A1CD9FCCF29318E2ABA /* App */,
+				11C4A563717874075B510E93 /* Packages */,
+				EF2C9E642E745228EC9981FB /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		6B3054318A2C036B9AA9DE71 /* Menus */ = {
+			isa = PBXGroup;
+			children = (
+				96544DD01C1132F21A86E482 /* AppMenus.swift */,
+			);
+			path = Menus;
+			sourceTree = "<group>";
+		};
+		6F5DD4DA294E8BFD864501F5 /* MenuBar */ = {
+			isa = PBXGroup;
+			children = (
+				457C7FC823D7001F5D71F72B /* AppDelegate.swift */,
+				EC7967893F5B0E5DCA051319 /* MenuBarController.swift */,
+			);
+			path = MenuBar;
+			sourceTree = "<group>";
+		};
+		75BACBF148CFFD45DD6EA8D4 /* Properties */ = {
+			isa = PBXGroup;
+			children = (
+				408ADD0BBBE5F54A27947245 /* ProcessPropertiesView.swift */,
+				C50A39FD8344D5108A84C1A8 /* PropertiesDetail.swift */,
+				F3886B33EB28F238487734CD /* PropertiesTabs.swift */,
+			);
+			path = Properties;
+			sourceTree = "<group>";
+		};
+		9E4B27EECD915E7C0A99687B /* LowerPane */ = {
+			isa = PBXGroup;
+			children = (
+				46D3924C3D913420F98E5A99 /* HandleDetailWindow.swift */,
+				6D61055208CF97D8CC5C35F3 /* LowerPaneView.swift */,
+				6F56D45DD790B0490B9EC284 /* ModuleDetailWindow.swift */,
+			);
+			path = LowerPane;
+			sourceTree = "<group>";
+		};
+		DFA741CDBF3BC25C503D71FC /* SystemInfo */ = {
+			isa = PBXGroup;
+			children = (
+				92B8C0D94D141ABAB70A71EB /* HardwareInfo.swift */,
+				EB9628C9809ACBDBD67EDB59 /* SystemInfoView.swift */,
+			);
+			path = SystemInfo;
+			sourceTree = "<group>";
+		};
+		E0A264A9968A8C9E2F9AB338 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				2298E34CD146F2B6E7052CAF /* Color+RGBA.swift */,
+				958DC889CA7C5F6D0864E2CC /* SettingsStore.swift */,
+				194AC9666EB23DBC2A417B9A /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		EEFF50F4BD949B6CC7D97F53 /* Actions */ = {
+			isa = PBXGroup;
+			children = (
+				FC1CA38D9D44295D6C8D45AA /* ActionCoordinator.swift */,
+			);
+			path = Actions;
+			sourceTree = "<group>";
+		};
+		EF2C9E642E745228EC9981FB /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				7C462D79EF7A5A7D75C07744 /* ProcexpMac.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F3F02A1CD9FCCF29318E2ABA /* App */ = {
+			isa = PBXGroup;
+			children = (
+				E4E45694445F4562413DA969 /* AppModel.swift */,
+				B14E5FC9442AD87244D49463 /* Assets.xcassets */,
+				3BD52021B86E1714A50FAFE2 /* BorderlessGridTableView.swift */,
+				2B22F8FD76F24B30E44E2125 /* ContentView.swift */,
+				54F5D04369E1786B4002E861 /* ProcexpApp.swift */,
+				416C2D2841B290FF87708A18 /* TableColumnPersistence.swift */,
+				5016D1B40D28FEC9F2BFA5BF /* About */,
+				EEFF50F4BD949B6CC7D97F53 /* Actions */,
+				9E4B27EECD915E7C0A99687B /* LowerPane */,
+				222931DF41FD8AE5F35037EA /* MainWindow */,
+				6F5DD4DA294E8BFD864501F5 /* MenuBar */,
+				6B3054318A2C036B9AA9DE71 /* Menus */,
+				75BACBF148CFFD45DD6EA8D4 /* Properties */,
+				E0A264A9968A8C9E2F9AB338 /* Settings */,
+				DFA741CDBF3BC25C503D71FC /* SystemInfo */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		B986F297C2B83CC8F294FF08 /* ProcexpMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 52FC40923443B64C81A8A80A /* Build configuration list for PBXNativeTarget "ProcexpMac" */;
+			buildPhases = (
+				88BC6EE96055D562BB7A135A /* Sources */,
+				F91A8826966E7FCA37934CE2 /* Resources */,
+				0DB9932A8A2B0E7F71F17BBE /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ProcexpMac;
+			packageProductDependencies = (
+				E5318BA0945504BE784DC8F3 /* ProcexpModel */,
+				661AABFB661CAA800D714E3C /* ProcexpSampling */,
+				DE935370E22FEED55EAEE1D3 /* ProcexpSigning */,
+				FC52D3673A51A1FDDEA210BE /* ProcexpNetwork */,
+				DC7CC98D32CC98839BB7A7EF /* ProcexpGraphs */,
+				03FA296B460CA85D8F1966C6 /* ProcexpAutostart */,
+				5D709654A7513CB5C49F3F40 /* ProcexpActions */,
+				36A8343241084AB5CED54F5D /* ProcexpPrivileged */,
+			);
+			productName = ProcexpMac;
+			productReference = 7C462D79EF7A5A7D75C07744 /* ProcexpMac.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		EB82098696468B686C044D44 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					B986F297C2B83CC8F294FF08 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Manual;
+					};
+				};
+			};
+			buildConfigurationList = 7B77368B71B58BAA4BB77B37 /* Build configuration list for PBXProject "ProcexpMac" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 62A83063B952A2FA22C8CBB6;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				593C715C0CDD414DF67E5468 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = EF2C9E642E745228EC9981FB /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B986F297C2B83CC8F294FF08 /* ProcexpMac */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F91A8826966E7FCA37934CE2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BC488934F81C1EE1235C027A /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		88BC6EE96055D562BB7A135A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				298CEBCC3B043842AC91B57E /* AboutView.swift in Sources */,
+				8E2D69764F702B12F4875AC2 /* ActionCoordinator.swift in Sources */,
+				410F1DA55AEB3EA0F00863D3 /* AppDelegate.swift in Sources */,
+				3A6E3E957B966CA296256A6A /* AppMenus.swift in Sources */,
+				A96A1EEF196364F0CCEC6A3D /* AppModel.swift in Sources */,
+				1E9917DD903F74F0BCB27F4B /* BorderlessGridTableView.swift in Sources */,
+				1A4F27678F64C3D76D9D775C /* Color+RGBA.swift in Sources */,
+				A7E8E0D8CA1FF45FC2C2DC52 /* ContentView.swift in Sources */,
+				C19339078A35FE74E2902A80 /* FindHandleDLLView.swift in Sources */,
+				089E906EB8ED83DB143D2CF7 /* HandleDetailWindow.swift in Sources */,
+				B426BE9ADD7F8DEB4D8E912E /* HardwareInfo.swift in Sources */,
+				56C373AE9CD25EB853AFB764 /* LowerPaneView.swift in Sources */,
+				971AF9AE024E9D663FFF50FE /* MainWindowView.swift in Sources */,
+				7925C4B62944B2DCE9123D0F /* MenuBarController.swift in Sources */,
+				51FEE6302C1158FBF3710405 /* ModuleDetailWindow.swift in Sources */,
+				5450EC0AECB1E98166E56CA5 /* ProcessOutlineView.swift in Sources */,
+				D02E7A7F34617C12F17FF72F /* ProcessPropertiesView.swift in Sources */,
+				A5B9E71D78622EC6CC66D65F /* ProcexpApp.swift in Sources */,
+				1EC4486198C20CAFEA1A0FE1 /* PropertiesDetail.swift in Sources */,
+				43FEAD8E720BB4475D31BE4C /* PropertiesTabs.swift in Sources */,
+				91A42F0EBD69B82C711794FF /* SettingsStore.swift in Sources */,
+				CCE38C236F051E7B67EE9845 /* SettingsView.swift in Sources */,
+				A784D268FFC7D65ACB2C3328 /* SystemInfoView.swift in Sources */,
+				459F0583072F20CF25D601BE /* TableColumnPersistence.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		5D140FD0904457224E7999B5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		88AFFD9D9F69405E9E961380 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Process Explorer";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Process Explorer for macOS";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sysinternals.procexpmac;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		95C826EF627FF5E2C297369F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		F8754B6D9017C26661581E66 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Process Explorer";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Process Explorer for macOS";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sysinternals.procexpmac;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		52FC40923443B64C81A8A80A /* Build configuration list for PBXNativeTarget "ProcexpMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				88AFFD9D9F69405E9E961380 /* Debug */,
+				F8754B6D9017C26661581E66 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7B77368B71B58BAA4BB77B37 /* Build configuration list for PBXProject "ProcexpMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5D140FD0904457224E7999B5 /* Debug */,
+				95C826EF627FF5E2C297369F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		593C715C0CDD414DF67E5468 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		03FA296B460CA85D8F1966C6 /* ProcexpAutostart */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ProcexpAutostart;
+		};
+		36A8343241084AB5CED54F5D /* ProcexpPrivileged */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ProcexpPrivileged;
+		};
+		5D709654A7513CB5C49F3F40 /* ProcexpActions */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ProcexpActions;
+		};
+		661AABFB661CAA800D714E3C /* ProcexpSampling */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ProcexpSampling;
+		};
+		DC7CC98D32CC98839BB7A7EF /* ProcexpGraphs */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ProcexpGraphs;
+		};
+		DE935370E22FEED55EAEE1D3 /* ProcexpSigning */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ProcexpSigning;
+		};
+		E5318BA0945504BE784DC8F3 /* ProcexpModel */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ProcexpModel;
+		};
+		FC52D3673A51A1FDDEA210BE /* ProcexpNetwork */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ProcexpNetwork;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = EB82098696468B686C044D44 /* Project object */;
+}
