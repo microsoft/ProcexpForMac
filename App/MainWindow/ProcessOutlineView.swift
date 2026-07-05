@@ -1523,6 +1523,13 @@ final class ProcessListSurfaceView: NSView {
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
 
+    // Disable AppKit's asynchronous "responsive scrolling" overlay. The process
+    // list is custom-drawn across two vertically-synced panes; the async overlay
+    // can slide a cached tile and redraw only the exposed edge out of step with
+    // the sibling pane's mirror, which momentarily compresses/overlaps rows
+    // during scrolling. Synchronous scrolling keeps both panes in lockstep.
+    override class var isCompatibleWithResponsiveScrolling: Bool { false }
+
     override func draw(_ dirtyRect: NSRect) {
         coordinator?.draw(surface: self, dirtyRect: dirtyRect)
     }
