@@ -22,6 +22,7 @@ public struct ProcessRecordDTO: Codable, Sendable {
     public var name: String
     public var executablePath: String?
     public var bundleIdentifier: String?
+    public var iconPath: String?
     public var imageType: ImageType
     public var uid: UInt32
     public var userName: String?
@@ -31,6 +32,9 @@ public struct ProcessRecordDTO: Codable, Sendable {
     public var hasControllingTTY: Bool
     public var isSessionLeader: Bool
     public var is64Bit: Bool?
+    public var displayDescription: String?
+    public var companyName: String?
+    public var version: String?
     public var commandLine: String?
     public var cpuPercent: Double
     public var cpuTime: UInt64
@@ -64,6 +68,7 @@ public struct ProcessRecordDTO: Codable, Sendable {
         name = r.name
         executablePath = r.executablePath
         bundleIdentifier = r.bundleIdentifier
+        iconPath = r.iconPath
         imageType = r.imageType
         uid = r.uid
         userName = r.userName
@@ -73,6 +78,9 @@ public struct ProcessRecordDTO: Codable, Sendable {
         hasControllingTTY = r.hasControllingTTY
         isSessionLeader = r.isSessionLeader
         is64Bit = r.is64Bit
+        displayDescription = r.displayDescription
+        companyName = r.companyName
+        version = r.version
         commandLine = r.commandLine
         cpuPercent = r.cpuPercent
         cpuTime = r.cpuTime
@@ -108,6 +116,7 @@ public struct ProcessRecordDTO: Codable, Sendable {
             name: name,
             executablePath: executablePath,
             bundleIdentifier: bundleIdentifier,
+            iconPath: iconPath,
             imageType: imageType,
             uid: uid,
             userName: userName,
@@ -117,6 +126,9 @@ public struct ProcessRecordDTO: Codable, Sendable {
             hasControllingTTY: hasControllingTTY,
             isSessionLeader: isSessionLeader,
             is64Bit: is64Bit,
+            displayDescription: displayDescription,
+            companyName: companyName,
+            version: version,
             commandLine: commandLine,
             cpuPercent: cpuPercent,
             cpuTime: cpuTime,
