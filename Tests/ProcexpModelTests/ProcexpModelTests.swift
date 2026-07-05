@@ -138,6 +138,26 @@ struct ProcexpModelTests {
         #expect(Column.supportedOnMac.contains(.pid))
     }
 
+    @Test("Lower-pane column defaults mirror Windows visible defaults")
+    func lowerPaneColumnDefaults() {
+        #expect(ModuleColumn.defaultColumns == [.name, .description, .company, .path])
+        #expect(HandleColumn.defaultColumns == [.kind, .name])
+        #expect(ThreadColumn.defaultColumns == [
+            .state, .tid, .userTime, .kernelTime, .cpu, .cpuTime,
+            .startAddress, .basePriority, .currentPriority,
+        ])
+    }
+
+    @Test("Lower-pane column metadata supplies titles widths and alignment")
+    func lowerPaneColumnMetadata() {
+        #expect(ModuleColumn.base.isRightAligned)
+        #expect(ModuleColumn.path.title == "Path")
+        #expect(HandleColumn.fd.title == "FD")
+        #expect(HandleColumn.fd.isRightAligned)
+        #expect(ThreadColumn.currentPriority.title == "Cur Pri")
+        #expect(ThreadColumn.state.defaultWidth > 0)
+    }
+
     @Test("New/dead colors take priority over own-process color")
     func colorRulePriority() {
         let bg = ProcessColorRule.background(

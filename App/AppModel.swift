@@ -75,6 +75,9 @@ final class AppModel {
     var processColumnWidth: Double = AppModel.defaultProcessColumnWidth { didSet { persistSettings() } }
     var columnWidths: [String: Double] = [:] { didSet { persistSettings() } }
     var columnSets: [ColumnSet] = [] { didSet { persistSettings() } }
+    var moduleColumns: [ModuleColumn] = ModuleColumn.defaultColumns { didSet { persistSettings() } }
+    var handleColumns: [HandleColumn] = HandleColumn.defaultColumns { didSet { persistSettings() } }
+    var threadColumns: [ThreadColumn] = ThreadColumn.defaultColumns { didSet { persistSettings() } }
     var colorRules: [ProcessColorRule] = ProcessColorRule.defaults { didSet { persistSettings() } }
 
     // W11 preference toggles.
@@ -328,6 +331,27 @@ final class AppModel {
             ))
         }
         return normalized
+    }
+
+    static func normalizedModuleColumns(_ columns: [ModuleColumn]) -> [ModuleColumn] {
+        normalizedLowerPaneColumns(columns, defaultColumns: ModuleColumn.defaultColumns)
+    }
+
+    static func normalizedHandleColumns(_ columns: [HandleColumn]) -> [HandleColumn] {
+        normalizedLowerPaneColumns(columns, defaultColumns: HandleColumn.defaultColumns)
+    }
+
+    static func normalizedThreadColumns(_ columns: [ThreadColumn]) -> [ThreadColumn] {
+        normalizedLowerPaneColumns(columns, defaultColumns: ThreadColumn.defaultColumns)
+    }
+
+    private static func normalizedLowerPaneColumns<C: LowerPaneColumn>(_ columns: [C], defaultColumns: [C]) -> [C] {
+        var seen = Set<C>()
+        var normalized: [C] = []
+        for column in columns where seen.insert(column).inserted {
+            normalized.append(column)
+        }
+        return normalized.isEmpty ? defaultColumns : normalized
     }
 
     func applyColumnSet(_ set: ColumnSet) {

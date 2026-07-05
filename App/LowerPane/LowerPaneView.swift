@@ -212,6 +212,7 @@ struct LowerPaneView: View {
     private var modulesTable: some View {
         ModuleRowsTable(
             rows: filteredModules,
+            columns: AppModel.normalizedModuleColumns(model.moduleColumns),
             highlights: moduleHighlights,
             selection: $selectedModuleID,
             onDoubleClick: openModuleDetail,
@@ -223,6 +224,7 @@ struct LowerPaneView: View {
     private var handlesTable: some View {
         FileDescriptorRowsTable(
             rows: filteredDescriptors,
+            columns: AppModel.normalizedHandleColumns(model.handleColumns),
             highlights: descriptorHighlights,
             selection: $selectedFDID,
             onDoubleClick: openHandleDetail
@@ -232,6 +234,7 @@ struct LowerPaneView: View {
     private var threadsTable: some View {
         ThreadRowsTable(
             rows: filteredThreads,
+            columns: AppModel.normalizedThreadColumns(model.threadColumns),
             selection: $selectedThreadID
         )
     }
@@ -581,6 +584,7 @@ struct LowerPaneView: View {
 
 private struct ModuleRowsTable: NSViewRepresentable {
     let rows: [ModuleRow]
+    let columns: [ModuleColumn]
     let highlights: [String: TimedListRowHighlight]
     @Binding var selection: ModuleRow.ID?
     var onDoubleClick: (ModuleRow) -> Void
@@ -626,8 +630,8 @@ private struct ModuleRowsTable: NSViewRepresentable {
         tableView.typeSelectHandler = { text in
             context.coordinator.handleTypeSelect(text)
         }
-        for column in Coordinator.columns {
-            tableView.addTableColumn(column.tableColumn)
+        for column in columns {
+            tableView.addTableColumn(context.coordinator.columnDef(for: column).tableColumn)
         }
         TableColumnPersistence.apply(to: tableView, key: Coordinator.persistenceKey)
         scrollView.documentView = tableView
@@ -636,11 +640,13 @@ private struct ModuleRowsTable: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.rows = rows
+        context.coordinator.columns = columns
         context.coordinator.highlights = highlights
         context.coordinator.onDoubleClick = onDoubleClick
         context.coordinator.onSearchOnline = onSearchOnline
         context.coordinator.onCheckVirusTotal = onCheckVirusTotal
         guard let tableView = context.coordinator.tableView else { return }
+        context.coordinator.syncColumns()
         tableView.reloadData()
         if let selection, let row = rows.firstIndex(where: { $0.id == selection }) {
             tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
@@ -671,19 +677,10 @@ private struct ModuleRowsTable: NSViewRepresentable {
             }
         }
 
-        static let columns = [
-            ColumnDef(id: "name", title: "Name", width: 200, alignment: .left),
-            ColumnDef(id: "description", title: "Description", width: 200, alignment: .left),
-            ColumnDef(id: "company", title: "Company", width: 150, alignment: .left),
-            ColumnDef(id: "version", title: "Version", width: 90, alignment: .left),
-            ColumnDef(id: "path", title: "Path", width: 320, alignment: .left),
-            ColumnDef(id: "signer", title: "Signer", width: 180, alignment: .left),
-            ColumnDef(id: "base", title: "Base", width: 130, alignment: .right),
-            ColumnDef(id: "size", title: "Size", width: 80, alignment: .right),
-        ]
         static let persistenceKey = "lowerPane.modules.columns"
 
         var rows: [ModuleRow] = []
+        var columns: [ModuleColumn] = ModuleColumn.defaultColumns
         var highlights: [String: TimedListRowHighlight] = [:]
         var selection: Binding<ModuleRow.ID?>
         var onDoubleClick: (ModuleRow) -> Void
@@ -692,6 +689,23 @@ private struct ModuleRowsTable: NSViewRepresentable {
         weak var tableView: NSTableView?
         private let typeSelectBuffer = TypeSelectBuffer()
         private let rowMenu = NSMenu(title: "Image")
+
+        func columnDef(for column: ModuleColumn) -> ColumnDef {
+            ColumnDef(
+                id: column.rawValue,
+                title: column.title,
+                width: CGFloat(column.defaultWidth),
+                alignment: column.isRightAligned ? .right : .left
+            )
+        }
+
+        @MainActor func syncColumns() {
+            guard let tableView else { return }
+            syncTableColumns(on: tableView, desiredIDs: columns.map(\.rawValue)) { raw in
+                guard let column = ModuleColumn(rawValue: raw) else { return nil }
+                return columnDef(for: column).tableColumn
+            }
+        }
 
         init(selection: Binding<ModuleRow.ID?>,
              onDoubleClick: @escaping (ModuleRow) -> Void,
@@ -885,7 +899,7 @@ private struct ModuleRowsTable: NSViewRepresentable {
         }
 
         private func alignment(for id: String) -> NSTextAlignment {
-            Self.columns.first { $0.id == id }?.alignment ?? .left
+            ModuleColumn(rawValue: id)?.isRightAligned == true ? .right : .left
         }
 
     }
@@ -893,6 +907,7 @@ private struct ModuleRowsTable: NSViewRepresentable {
 
 private struct FileDescriptorRowsTable: NSViewRepresentable {
     let rows: [FileDescriptorInfo]
+    let columns: [HandleColumn]
     let highlights: [String: TimedListRowHighlight]
     @Binding var selection: FileDescriptorInfo.ID?
     var onDoubleClick: (FileDescriptorInfo) -> Void
@@ -930,8 +945,8 @@ private struct FileDescriptorRowsTable: NSViewRepresentable {
         tableView.typeSelectHandler = { text in
             context.coordinator.handleTypeSelect(text)
         }
-        for column in Coordinator.columns {
-            tableView.addTableColumn(column.tableColumn)
+        for column in columns {
+            tableView.addTableColumn(context.coordinator.columnDef(for: column).tableColumn)
         }
         TableColumnPersistence.apply(to: tableView, key: Coordinator.persistenceKey)
         scrollView.documentView = tableView
@@ -940,9 +955,11 @@ private struct FileDescriptorRowsTable: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.rows = rows
+        context.coordinator.columns = columns
         context.coordinator.highlights = highlights
         context.coordinator.onDoubleClick = onDoubleClick
         guard let tableView = context.coordinator.tableView else { return }
+        context.coordinator.syncColumns()
         tableView.reloadData()
         if let selection, let row = rows.firstIndex(where: { $0.id == selection }) {
             tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
@@ -973,23 +990,32 @@ private struct FileDescriptorRowsTable: NSViewRepresentable {
             }
         }
 
-        static let columns = [
-            ColumnDef(id: "type", title: "Type", width: 100, alignment: .left),
-            ColumnDef(id: "name", title: "Name", width: 440, alignment: .left),
-            ColumnDef(id: "access", title: "Access", width: 76, alignment: .left),
-            ColumnDef(id: "offset", title: "Offset", width: 86, alignment: .right),
-            ColumnDef(id: "size", title: "Size", width: 86, alignment: .right),
-            ColumnDef(id: "status", title: "Status", width: 86, alignment: .left),
-            ColumnDef(id: "fd", title: "FD", width: 56, alignment: .right),
-        ]
         static let persistenceKey = "lowerPane.handles.columns.v2"
 
         var rows: [FileDescriptorInfo] = []
+        var columns: [HandleColumn] = HandleColumn.defaultColumns
         var highlights: [String: TimedListRowHighlight] = [:]
         var selection: Binding<FileDescriptorInfo.ID?>
         var onDoubleClick: (FileDescriptorInfo) -> Void
         weak var tableView: NSTableView?
         private let typeSelectBuffer = TypeSelectBuffer()
+
+        func columnDef(for column: HandleColumn) -> ColumnDef {
+            ColumnDef(
+                id: column.rawValue,
+                title: column.title,
+                width: CGFloat(column.defaultWidth),
+                alignment: column.isRightAligned ? .right : .left
+            )
+        }
+
+        @MainActor func syncColumns() {
+            guard let tableView else { return }
+            syncTableColumns(on: tableView, desiredIDs: columns.map(\.rawValue)) { raw in
+                guard let column = HandleColumn(rawValue: raw) else { return nil }
+                return columnDef(for: column).tableColumn
+            }
+        }
 
         init(selection: Binding<FileDescriptorInfo.ID?>, onDoubleClick: @escaping (FileDescriptorInfo) -> Void) {
             self.selection = selection
@@ -1110,12 +1136,21 @@ private struct FileDescriptorRowsTable: NSViewRepresentable {
 
         private func text(for id: String, row: FileDescriptorInfo) -> String {
             switch id {
-            case "type": return row.kind.rawValue
+            case "kind": return row.kind.rawValue
             case "name": return row.name
             case "access": return accessText(row.openFlags)
             case "offset": return row.offset.map(String.init) ?? ""
             case "size": return row.vnode.map { ByteFormat.bytes(UInt64(max(0, $0.size))) } ?? ""
             case "status": return flagsHex(row.statusFlags)
+            case "guardFlags": return flagsHex(row.guardFlags)
+            case "vnodeType": return row.vnode?.type.rawValue ?? ""
+            case "inode": return row.vnode.map { String($0.inode) } ?? ""
+            case "socketFamily": return row.socket?.addressFamily.map(String.init) ?? ""
+            case "socketProtocol": return row.socket?.protocolNumber.map(String.init) ?? ""
+            case "socketState": return row.socket?.state ?? ""
+            case "socketQueues": return queueText(row.socket)
+            case "receiveBuffer": return row.socket?.receiveBuffer.map { ByteFormat.bytes(UInt64($0.currentBytes)) } ?? ""
+            case "sendBuffer": return row.socket?.sendBuffer.map { ByteFormat.bytes(UInt64($0.currentBytes)) } ?? ""
             case "fd": return String(row.id)
             default: return ""
             }
@@ -1137,7 +1172,12 @@ private struct FileDescriptorRowsTable: NSViewRepresentable {
         }
 
         private func alignment(for id: String) -> NSTextAlignment {
-            Self.columns.first { $0.id == id }?.alignment ?? .left
+            HandleColumn(rawValue: id)?.isRightAligned == true ? .right : .left
+        }
+
+        private func queueText(_ socket: SocketInfo?) -> String {
+            guard let socket, let qlen = socket.queueLength, let qlimit = socket.queueLimit else { return "" }
+            return "\(qlen)/\(qlimit)"
         }
 
         private func descriptorKey(_ fd: FileDescriptorInfo) -> String {
@@ -1148,6 +1188,7 @@ private struct FileDescriptorRowsTable: NSViewRepresentable {
 
 private struct ThreadRowsTable: NSViewRepresentable {
     let rows: [ThreadInfo]
+    let columns: [ThreadColumn]
     @Binding var selection: ThreadInfo.ID?
 
     func makeCoordinator() -> Coordinator {
@@ -1181,8 +1222,8 @@ private struct ThreadRowsTable: NSViewRepresentable {
         tableView.typeSelectHandler = { text in
             context.coordinator.handleTypeSelect(text)
         }
-        for column in Coordinator.columns {
-            tableView.addTableColumn(column.tableColumn)
+        for column in columns {
+            tableView.addTableColumn(context.coordinator.columnDef(for: column).tableColumn)
         }
         TableColumnPersistence.apply(to: tableView, key: Coordinator.persistenceKey)
         scrollView.documentView = tableView
@@ -1191,7 +1232,9 @@ private struct ThreadRowsTable: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.rows = rows
+        context.coordinator.columns = columns
         guard let tableView = context.coordinator.tableView else { return }
+        context.coordinator.syncColumns()
         tableView.reloadData()
         if let selection, let row = rows.firstIndex(where: { $0.id == selection }) {
             tableView.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
@@ -1222,26 +1265,30 @@ private struct ThreadRowsTable: NSViewRepresentable {
             }
         }
 
-        static let columns = [
-            ColumnDef(id: "tid", title: "TID", width: 92, alignment: .right),
-            ColumnDef(id: "name", title: "Name", width: 150, alignment: .left),
-            ColumnDef(id: "cpu", title: "CPU", width: 70, alignment: .right),
-            ColumnDef(id: "cpuTime", title: "CPU Time", width: 100, alignment: .right),
-            ColumnDef(id: "state", title: "State", width: 110, alignment: .left),
-            ColumnDef(id: "curPriority", title: "Cur Pri", width: 70, alignment: .right),
-            ColumnDef(id: "basePriority", title: "Base Pri", width: 76, alignment: .right),
-            ColumnDef(id: "maxPriority", title: "Max Pri", width: 70, alignment: .right),
-            ColumnDef(id: "policy", title: "Policy", width: 94, alignment: .left),
-            ColumnDef(id: "sleep", title: "Sleep", width: 62, alignment: .right),
-            ColumnDef(id: "flags", title: "Flags", width: 74, alignment: .right),
-            ColumnDef(id: "dispatch", title: "Dispatch Q", width: 112, alignment: .right),
-        ]
         static let persistenceKey = "lowerPane.threads.columns.v2"
 
         var rows: [ThreadInfo] = []
+        var columns: [ThreadColumn] = ThreadColumn.defaultColumns
         var selection: Binding<ThreadInfo.ID?>
         weak var tableView: NSTableView?
         private let typeSelectBuffer = TypeSelectBuffer()
+
+        func columnDef(for column: ThreadColumn) -> ColumnDef {
+            ColumnDef(
+                id: column.rawValue,
+                title: column.title,
+                width: CGFloat(column.defaultWidth),
+                alignment: column.isRightAligned ? .right : .left
+            )
+        }
+
+        @MainActor func syncColumns() {
+            guard let tableView else { return }
+            syncTableColumns(on: tableView, desiredIDs: columns.map(\.rawValue)) { raw in
+                guard let column = ThreadColumn(rawValue: raw) else { return nil }
+                return columnDef(for: column).tableColumn
+            }
+        }
 
         init(selection: Binding<ThreadInfo.ID?>) {
             self.selection = selection
@@ -1360,13 +1407,16 @@ private struct ThreadRowsTable: NSViewRepresentable {
             case "cpu": return String(format: "%.1f%%", row.cpuPercent)
             case "cpuTime": return formatCPUTime(row.cpuTime)
             case "state": return row.state
-            case "curPriority": return row.currentPriority == 0 ? "" : String(row.currentPriority)
+            case "currentPriority": return row.currentPriority == 0 ? "" : String(row.currentPriority)
             case "basePriority": return row.basePriority == 0 ? "" : String(row.basePriority)
             case "maxPriority": return row.maxPriority == 0 ? "" : String(row.maxPriority)
             case "policy": return policyText(row.schedulerPolicy)
-            case "sleep": return row.sleepTimeSeconds > 0 ? "\(row.sleepTimeSeconds)s" : ""
+            case "sleepTime": return row.sleepTimeSeconds > 0 ? "\(row.sleepTimeSeconds)s" : ""
             case "flags": return row.flags == 0 ? "" : String(format: "0x%X", row.flags)
-            case "dispatch": return hexString(row.dispatchQueueAddress)
+            case "dispatchQueue": return hexString(row.dispatchQueueAddress)
+            case "userTime": return ""
+            case "kernelTime": return ""
+            case "startAddress": return row.startSymbol ?? hexString(row.startAddress)
             default: return ""
             }
         }
@@ -1382,7 +1432,7 @@ private struct ThreadRowsTable: NSViewRepresentable {
         }
 
         private func alignment(for id: String) -> NSTextAlignment {
-            Self.columns.first { $0.id == id }?.alignment ?? .left
+            ThreadColumn(rawValue: id)?.isRightAligned == true ? .right : .left
         }
 
         private func searchableText(for row: ThreadInfo) -> String {
@@ -1409,6 +1459,27 @@ private struct ThreadRowsTable: NSViewRepresentable {
                 return String(format: "%llu:%02llu:%02llu.%03llu", hours, minutes, seconds, milliseconds)
             }
             return String(format: "%llu:%02llu.%03llu", minutes, seconds, milliseconds)
+        }
+    }
+}
+
+@MainActor
+private func syncTableColumns(
+    on tableView: NSTableView,
+    desiredIDs: [String],
+    makeColumn: (String) -> NSTableColumn?
+) {
+    let desired = desiredIDs.filter { !$0.isEmpty }
+    for column in tableView.tableColumns where !desired.contains(column.identifier.rawValue) {
+        tableView.removeTableColumn(column)
+    }
+    for (index, id) in desired.enumerated() {
+        if let current = tableView.tableColumns.firstIndex(where: { $0.identifier.rawValue == id }) {
+            if current != index { tableView.moveColumn(current, toColumn: index) }
+        } else if let column = makeColumn(id) {
+            tableView.addTableColumn(column)
+            let current = tableView.tableColumns.count - 1
+            if current != index { tableView.moveColumn(current, toColumn: index) }
         }
     }
 }

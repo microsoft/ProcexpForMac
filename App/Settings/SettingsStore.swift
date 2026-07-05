@@ -22,6 +22,9 @@ enum SettingsStore {
         static let processColumnWidth = "settings.processColumnWidth"
         static let columnWidths       = "settings.columnWidths"
         static let columnSets         = "settings.columnSets"
+        static let moduleColumns      = "settings.lowerPane.moduleColumns"
+        static let handleColumns      = "settings.lowerPane.handleColumns"
+        static let threadColumns      = "settings.lowerPane.threadColumns"
         static let colorRules         = "settings.colorRules"
         static let confirmBeforeKill  = "settings.confirmBeforeKill"
         static let verifySignatures   = "settings.verifySignatures"
@@ -61,6 +64,16 @@ enum SettingsStore {
             model.columnSets = AppModel.normalizedColumnSets(sets)
         }
 
+        if let raw = defaults.array(forKey: Key.moduleColumns) as? [String] {
+            model.moduleColumns = AppModel.normalizedModuleColumns(raw.compactMap(ModuleColumn.init(rawValue:)))
+        }
+        if let raw = defaults.array(forKey: Key.handleColumns) as? [String] {
+            model.handleColumns = AppModel.normalizedHandleColumns(raw.compactMap(HandleColumn.init(rawValue:)))
+        }
+        if let raw = defaults.array(forKey: Key.threadColumns) as? [String] {
+            model.threadColumns = AppModel.normalizedThreadColumns(raw.compactMap(ThreadColumn.init(rawValue:)))
+        }
+
         if let data = defaults.data(forKey: Key.colorRules),
            let rules = try? JSONDecoder().decode([ProcessColorRule].self, from: data),
            !rules.isEmpty {
@@ -91,6 +104,9 @@ enum SettingsStore {
         if let data = try? JSONEncoder().encode(model.columnSets) {
             defaults.set(data, forKey: Key.columnSets)
         }
+        defaults.set(model.moduleColumns.map(\.rawValue), forKey: Key.moduleColumns)
+        defaults.set(model.handleColumns.map(\.rawValue), forKey: Key.handleColumns)
+        defaults.set(model.threadColumns.map(\.rawValue), forKey: Key.threadColumns)
         if let data = try? JSONEncoder().encode(model.colorRules) {
             defaults.set(data, forKey: Key.colorRules)
         }

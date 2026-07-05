@@ -8,6 +8,200 @@
 
 import Foundation
 
+public protocol LowerPaneColumn: CaseIterable, Codable, Hashable, Sendable, RawRepresentable where RawValue == String {
+    var title: String { get }
+    var defaultWidth: Double { get }
+    var isRightAligned: Bool { get }
+}
+
+public enum ModuleColumn: String, LowerPaneColumn {
+    case name
+    case description
+    case company
+    case version
+    case path
+    case signer
+    case base
+    case size
+
+    public var title: String {
+        switch self {
+        case .name: return "Name"
+        case .description: return "Description"
+        case .company: return "Company"
+        case .version: return "Version"
+        case .path: return "Path"
+        case .signer: return "Signer"
+        case .base: return "Base"
+        case .size: return "Size"
+        }
+    }
+
+    public var defaultWidth: Double {
+        switch self {
+        case .name: return 200
+        case .description: return 200
+        case .company: return 150
+        case .version: return 90
+        case .path: return 320
+        case .signer: return 180
+        case .base: return 130
+        case .size: return 80
+        }
+    }
+
+    public var isRightAligned: Bool {
+        switch self {
+        case .base, .size: return true
+        default: return false
+        }
+    }
+
+    /// Mirrors Windows Process Explorer's DLL lower-pane defaults:
+    /// Name, Description, Company Name, Path.
+    public static let defaultColumns: [ModuleColumn] = [.name, .description, .company, .path]
+}
+
+public enum HandleColumn: String, LowerPaneColumn {
+    case kind
+    case name
+    case fd
+    case access
+    case offset
+    case size
+    case status
+    case guardFlags
+    case vnodeType
+    case inode
+    case socketFamily
+    case socketProtocol
+    case socketState
+    case socketQueues
+    case receiveBuffer
+    case sendBuffer
+
+    public var title: String {
+        switch self {
+        case .kind: return "Type"
+        case .name: return "Name"
+        case .fd: return "FD"
+        case .access: return "Access"
+        case .offset: return "Offset"
+        case .size: return "Size"
+        case .status: return "Status"
+        case .guardFlags: return "Guard"
+        case .vnodeType: return "Vnode Type"
+        case .inode: return "Inode"
+        case .socketFamily: return "Family"
+        case .socketProtocol: return "Protocol"
+        case .socketState: return "Socket State"
+        case .socketQueues: return "Queues"
+        case .receiveBuffer: return "Recv Buffer"
+        case .sendBuffer: return "Send Buffer"
+        }
+    }
+
+    public var defaultWidth: Double {
+        switch self {
+        case .kind: return 100
+        case .name: return 440
+        case .fd: return 56
+        case .access: return 76
+        case .offset, .size, .status, .guardFlags: return 86
+        case .vnodeType: return 100
+        case .inode: return 110
+        case .socketFamily, .socketProtocol: return 86
+        case .socketState: return 110
+        case .socketQueues: return 90
+        case .receiveBuffer, .sendBuffer: return 100
+        }
+    }
+
+    public var isRightAligned: Bool {
+        switch self {
+        case .fd, .offset, .size, .inode, .socketQueues, .receiveBuffer, .sendBuffer: return true
+        default: return false
+        }
+    }
+
+    /// Mirrors Windows Process Explorer's handle lower-pane defaults:
+    /// Type, Name.
+    public static let defaultColumns: [HandleColumn] = [.kind, .name]
+}
+
+public enum ThreadColumn: String, LowerPaneColumn {
+    case state
+    case tid
+    case name
+    case userTime
+    case kernelTime
+    case cpu
+    case cpuTime
+    case startAddress
+    case basePriority
+    case currentPriority
+    case maxPriority
+    case policy
+    case sleepTime
+    case flags
+    case dispatchQueue
+
+    public var title: String {
+        switch self {
+        case .state: return "State"
+        case .tid: return "TID"
+        case .name: return "Name"
+        case .userTime: return "User Time"
+        case .kernelTime: return "Kernel Time"
+        case .cpu: return "CPU"
+        case .cpuTime: return "CPU Time"
+        case .startAddress: return "Start Address"
+        case .basePriority: return "Base Pri"
+        case .currentPriority: return "Cur Pri"
+        case .maxPriority: return "Max Pri"
+        case .policy: return "Policy"
+        case .sleepTime: return "Sleep"
+        case .flags: return "Flags"
+        case .dispatchQueue: return "Dispatch Q"
+        }
+    }
+
+    public var defaultWidth: Double {
+        switch self {
+        case .state: return 110
+        case .tid: return 92
+        case .name: return 150
+        case .userTime, .kernelTime, .cpuTime: return 100
+        case .cpu: return 70
+        case .startAddress: return 130
+        case .basePriority, .currentPriority, .maxPriority: return 76
+        case .policy: return 94
+        case .sleepTime: return 62
+        case .flags: return 74
+        case .dispatchQueue: return 112
+        }
+    }
+
+    public var isRightAligned: Bool {
+        switch self {
+        case .tid, .userTime, .kernelTime, .cpu, .cpuTime, .basePriority,
+             .currentPriority, .maxPriority, .sleepTime, .flags, .dispatchQueue:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Windows Process Explorer's thread view defaults begin with State, TID,
+    /// User Time, Kernel Time, CPU, CPU Time, Start Address, and priorities.
+    /// macOS does not expose wait reason/service/memory-priority/I/O-priority
+    /// equivalents publicly, so defaults stop at the supported equivalents.
+    public static let defaultColumns: [ThreadColumn] = [
+        .state, .tid, .userTime, .kernelTime, .cpu, .cpuTime,
+        .startAddress, .basePriority, .currentPriority
+    ]
+}
+
 public struct ThreadInfo: Identifiable, Sendable, Hashable {
     public var id: UInt64            // TID
     public var name: String
