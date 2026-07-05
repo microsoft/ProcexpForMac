@@ -40,6 +40,9 @@ struct ProcexpApp: App {
             CommandGroup(after: .toolbar) {
                 SystemInfoMenuCommand()
             }
+
+            // Remove the default macOS "Help" menu.
+            CommandGroup(replacing: .help) { }
         }
 
         // W6 — one Process Properties window per process. Opening the same

@@ -17,12 +17,10 @@ enum AboutWindow {
 }
 
 struct AboutView: View {
+    @Environment(\.dismiss) private var dismiss
+
     private var shortVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
-    }
-
-    private var buildVersion: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
     }
 
     private var appIcon: NSImage {
@@ -30,51 +28,38 @@ struct AboutView: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 20) {
-            Image(nsImage: appIcon)
-                .resizable()
-                .frame(width: 96, height: 96)
-                .accessibilityHidden(true)
+        VStack(spacing: 18) {
+            HStack(alignment: .center, spacing: 16) {
+                Image(nsImage: appIcon)
+                    .resizable()
+                    .frame(width: 72, height: 72)
+                    .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Process Explorer")
-                    .font(.title)
-                    .fontWeight(.semibold)
-
-                Text("Version \(shortVersion) (build \(buildVersion))")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-
-                Text("A native macOS process viewer that shows a live tree of "
-                     + "running processes, per-process CPU/memory/GPU/network "
-                     + "activity, loaded modules, open handles, code-signing "
-                     + "status, and system-wide performance graphs.")
-                    .font(.callout)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 2)
-
-                Divider()
-                    .padding(.vertical, 2)
-
-                Text("A macOS port inspired by Sysinternals Process Explorer "
-                     + "by Mark Russinovich.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Link("Sysinternals Process Explorer",
-                     destination: URL(string: "https://learn.microsoft.com/sysinternals/downloads/process-explorer")!)
-                    .font(.footnote)
-
-                Text("© Process Explorer for macOS")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 4)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Process Explorer")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    Text("Version \(shortVersion)")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
             }
+
+            VStack(spacing: 3) {
+                Link("Sysinternals - www.sysinternals.com",
+                     destination: URL(string: "https://www.sysinternals.com")!)
+                Text("Copyright © 1996–2026 Mark Russinovich")
+                    .foregroundStyle(.secondary)
+            }
+            .font(.caption)
+
+            Button("OK") { dismiss() }
+                .keyboardShortcut(.defaultAction)
         }
         .padding(24)
-        .frame(width: 460, height: 260)
+        .frame(width: 360)
+        .fixedSize()
     }
 }
 

@@ -18,7 +18,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let model = ProcexpApp.sharedModel
         attach(model: model)
         showMainWindow()
+        removeHelpMenu()
         Task { await model.start() }
+    }
+
+    /// AppKit injects a top-level "Help" menu automatically. Remove it so the
+    /// menu bar matches Windows Process Explorer, which has no Help menu.
+    private func removeHelpMenu() {
+        NSApp.helpMenu = nil
+        if let help = NSApp.mainMenu?.items.first(where: { $0.title == "Help" }) {
+            NSApp.mainMenu?.removeItem(help)
+        }
+    }
+
+    /// SwiftUI re-adds the default Help menu whenever it rebuilds the menu bar,
+    /// so strip it on every update cycle to keep it hidden.
+    func applicationDidUpdate(_ notification: Notification) {
+        if let help = NSApp.mainMenu?.items.first(where: { $0.title == "Help" }) {
+            NSApp.mainMenu?.removeItem(help)
+        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
