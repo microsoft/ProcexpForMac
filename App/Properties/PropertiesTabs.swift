@@ -142,7 +142,7 @@ private struct VisibleScrollbarScrollView<Content: View>: NSViewRepresentable {
         let scrollView = NSScrollView()
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = false
-        scrollView.hasVerticalScroller = true
+        scrollView.hasVerticalScroller = false
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = false
         scrollView.scrollerStyle = .legacy
@@ -171,8 +171,16 @@ private struct VisibleScrollbarScrollView<Content: View>: NSViewRepresentable {
               let hosting = context.coordinator.hostingView else { return }
         let width = max(1, scrollView.contentSize.width)
         let fitting = hosting.fittingSize
-        document.setFrameSize(NSSize(width: width, height: max(scrollView.contentSize.height, fitting.height)))
-        hosting.setFrameSize(NSSize(width: width, height: max(fitting.height, scrollView.contentSize.height)))
+        let height = max(1, fitting.height)
+        let needsScroller = height > scrollView.contentSize.height + 0.5
+        if scrollView.hasVerticalScroller != needsScroller {
+            scrollView.hasVerticalScroller = needsScroller
+        }
+        document.setFrameSize(NSSize(width: width, height: height))
+        hosting.setFrameSize(NSSize(width: width, height: height))
+        if !needsScroller {
+            scrollView.contentView.scroll(to: .zero)
+        }
     }
 
     final class Coordinator {
