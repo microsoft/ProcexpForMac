@@ -262,9 +262,9 @@ final class AppModel {
     /// On success, switch the app onto the privileged provider/actions and
     /// restart sampling. Returns a user-facing result.
     ///
-    /// Under the current ad-hoc ("Sign to Run Locally") signature this reports
-    /// a clean failure — registering a launchd daemon requires Developer-ID
-    /// signing + embedding (W13). It never crashes.
+    /// `SMAppService` requires a stable (non-ad-hoc) code signature and an
+    /// explicit user approval in System Settings. It never crashes; any failure
+    /// is surfaced as a clean message and the app stays unprivileged.
     func installPrivilegedHelper() async -> (ok: Bool, message: String) {
         do {
             try await PrivilegedDataProvider.installHelper()
@@ -272,9 +272,10 @@ final class AppModel {
             return (false, """
             The privileged helper could not be registered.
 
-            This is expected until the app is Developer-ID signed and the helper \
-            is embedded under Contents/Library/LaunchDaemons (workstream W13). \
-            Everything continues to work in the unprivileged mode.
+            Make sure the app is signed with a stable (non-ad-hoc) identity and \
+            installed in /Applications, then approve the helper in System \
+            Settings ▸ General ▸ Login Items & Extensions. The app continues to \
+            work in unprivileged mode.
             """)
         }
 

@@ -128,10 +128,12 @@ elevated privileges, such as richer cross-user process detail (full process
 list, threads, modules, environment) and privileged process control. The helper
 is a launchd daemon reached over XPC; the app registers it with `SMAppService`.
 
-macOS gates `SMAppService` daemon registration on the app's code signature, so
-the helper only registers from a build signed with a **Developer ID Application**
-certificate. The sections below cover both the real signed install and a
-high-fidelity local test.
+macOS gates `SMAppService` daemon registration on the app's code signature and
+on an explicit user approval. The app must be signed with a **stable, non-ad-hoc**
+identity — a **Developer ID Application** certificate for distribution, or a
+self-signed identity for local development — and you approve the daemon once in
+**System Settings ▸ General ▸ Login Items & Extensions**. The sections below
+cover both the Developer ID install and a local self-signed test.
 
 ### Testing with a Developer ID certificate (real install)
 
@@ -194,9 +196,12 @@ launchctl print system/com.sysinternals.procexpmac.helper
 ```
 
 If registration succeeded, the process list shows previously hidden cross-user
-and system processes. If it was refused (for example, an untrusted signature),
-the app reports that the helper could not be registered and continues in
-unprivileged mode.
+and system processes. If the daemon is registered but not yet enabled, approve
+it in **System Settings ▸ General ▸ Login Items & Extensions** and it becomes
+active. Repeated reinstalls can clear a previously remembered approval, in which
+case macOS asks you to approve it again. If registration is refused outright
+(for example, an ad-hoc signature), the app reports that the helper could not be
+registered and continues in unprivileged mode.
 
 Remove the installed app and unregister the helper:
 
