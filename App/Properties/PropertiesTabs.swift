@@ -129,6 +129,58 @@ private struct InfoScrollRow: View {
     }
 }
 
+private struct VisibleScrollbarScrollView<Content: View>: NSViewRepresentable {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = false
+        scrollView.scrollerStyle = .legacy
+        scrollView.verticalScrollElasticity = .allowed
+
+        let hosting = NSHostingView(rootView: content)
+        hosting.translatesAutoresizingMaskIntoConstraints = false
+        let document = NSView()
+        document.translatesAutoresizingMaskIntoConstraints = false
+        document.addSubview(hosting)
+        NSLayoutConstraint.activate([
+            hosting.leadingAnchor.constraint(equalTo: document.leadingAnchor),
+            hosting.trailingAnchor.constraint(equalTo: document.trailingAnchor),
+            hosting.topAnchor.constraint(equalTo: document.topAnchor),
+            hosting.bottomAnchor.constraint(equalTo: document.bottomAnchor),
+        ])
+        scrollView.documentView = document
+        context.coordinator.hostingView = hosting
+        context.coordinator.documentView = document
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.hostingView?.rootView = content
+        guard let document = context.coordinator.documentView,
+              let hosting = context.coordinator.hostingView else { return }
+        let width = max(1, scrollView.contentSize.width)
+        let fitting = hosting.fittingSize
+        document.setFrameSize(NSSize(width: width, height: max(scrollView.contentSize.height, fitting.height)))
+        hosting.setFrameSize(NSSize(width: width, height: max(fitting.height, scrollView.contentSize.height)))
+    }
+
+    final class Coordinator {
+        var hostingView: NSHostingView<Content>?
+        weak var documentView: NSView?
+    }
+}
+
 /// A titled `GroupBox` section wrapper used across tabs.
 private struct Section<Content: View>: View {
     let title: String
@@ -1003,7 +1055,7 @@ struct StringsTab: View {
                 Text("Image strings (memory strings require the privileged helper).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                ScrollView {
+                VisibleScrollbarScrollView {
                     LazyVStack(alignment: .leading, spacing: 2) {
                         ForEach(Array(filtered.enumerated()), id: \.offset) { offset, line in
                             tooltipText(line, selected: selectedRows.contains(offset))
@@ -1049,7 +1101,7 @@ struct SecurityTab: View {
     @Bindable var detail: PropertiesDetail
 
     var body: some View {
-        ScrollView(.vertical) {
+        VisibleScrollbarScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 identitySection
                 entitlementsSection
