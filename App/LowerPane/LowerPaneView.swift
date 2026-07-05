@@ -74,8 +74,15 @@ struct LowerPaneView: View {
     @State private var moduleRows: [ModuleRow] = []
     @State private var moduleHighlights: [String: TimedListRowHighlight] = [:]
     @State private var moduleSignatureCache: [String: SignatureInfo] = [:]
+    // The set of image IDs the provider actually reported last cycle (excludes
+    // fading "deleted" ghosts) plus the ghost rows still being shown, so the
+    // diff highlighting can retire a deleted row once its highlight expires.
+    @State private var liveModuleIDs: Set<String> = []
+    @State private var moduleGhosts: [String: ModuleRow] = [:]
     @State private var descriptors: [FileDescriptorInfo] = []
     @State private var descriptorHighlights: [String: TimedListRowHighlight] = [:]
+    @State private var liveDescriptorIDs: Set<String> = []
+    @State private var descriptorGhosts: [String: FileDescriptorInfo] = [:]
     @State private var threads: [ThreadInfo] = []
     @State private var note: String?
     @State private var isRetrieving = false
@@ -357,6 +364,10 @@ struct LowerPaneView: View {
         threads = []
         moduleHighlights = [:]
         descriptorHighlights = [:]
+        liveModuleIDs = []
+        moduleGhosts = [:]
+        liveDescriptorIDs = []
+        descriptorGhosts = [:]
         selectedModuleID = nil
         selectedFDID = nil
         selectedThreadID = nil
@@ -428,38 +439,89 @@ struct LowerPaneView: View {
     private func mergeModuleRows(_ incoming: [ModuleRow]) -> [ModuleRow] {
         let now = Date()
         let expiry = now.addingTimeInterval(max(0.2, model.differenceHighlightDuration))
-        let oldByID = Dictionary(uniqueKeysWithValues: moduleRows.map { ($0.id, $0) })
-        let oldIDs = Set(oldByID.keys)
-        let newIDs = Set(incoming.map(\.id))
+        let incomingByID = Dictionary(incoming.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let incomingIDs = Set(incomingByID.keys)
+
+        // Drop expired highlights and any ghost rows whose highlight is gone.
         moduleHighlights = moduleHighlights.filter { $0.value.expiresAt > now }
-        if oldByID.isEmpty && moduleHighlights.isEmpty { return incoming }
-        for id in newIDs.subtracting(oldIDs) {
+        moduleGhosts = moduleGhosts.filter { moduleHighlights[$0.key]?.kind == .deleted }
+
+        // First population for this selection: no diff highlighting.
+        if liveModuleIDs.isEmpty && moduleGhosts.isEmpty && moduleHighlights.isEmpty {
+            liveModuleIDs = incomingIDs
+            return incoming
+        }
+
+        // Newly appeared images (weren't live last cycle) → green highlight.
+        for id in incomingIDs.subtracting(liveModuleIDs) {
             moduleHighlights[id] = TimedListRowHighlight(kind: .new, expiresAt: expiry)
         }
-        for id in oldIDs.subtracting(newIDs) {
+        // A reappearing image is live again; clear any ghost/deleted state.
+        for id in incomingIDs where moduleGhosts[id] != nil {
+            moduleGhosts[id] = nil
+        }
+        // Newly removed images (were live, now gone) → red highlight + ghost row.
+        for id in liveModuleIDs.subtracting(incomingIDs) {
+            if let row = moduleRows.first(where: { $0.id == id }) {
+                moduleGhosts[id] = row
+            }
             moduleHighlights[id] = TimedListRowHighlight(kind: .deleted, expiresAt: expiry)
         }
-        let deletedRows = oldByID.values.filter { moduleHighlights[$0.id]?.kind == .deleted }
-        return incoming + deletedRows
+
+        liveModuleIDs = incomingIDs
+
+        // Keep only ghosts whose deleted highlight is still active.
+        let ghostRows = moduleGhosts.compactMap { id, row -> ModuleRow? in
+            guard let highlight = moduleHighlights[id],
+                  highlight.kind == .deleted,
+                  highlight.expiresAt > now else { return nil }
+            return row
+        }
+        return incoming + ghostRows
     }
 
     private func mergeDescriptors(_ incoming: [FileDescriptorInfo]) -> [FileDescriptorInfo] {
         let now = Date()
         let expiry = now.addingTimeInterval(max(0.2, model.differenceHighlightDuration))
-        let oldByID = Dictionary(uniqueKeysWithValues: descriptors.map { (descriptorKey($0), $0) })
-        let newByID = Dictionary(uniqueKeysWithValues: incoming.map { (descriptorKey($0), $0) })
-        let oldIDs = Set(oldByID.keys)
-        let newIDs = Set(newByID.keys)
+        let incomingByKey = Dictionary(incoming.map { (descriptorKey($0), $0) }, uniquingKeysWith: { first, _ in first })
+        let incomingIDs = Set(incomingByKey.keys)
+
+        // Drop expired highlights and any ghost rows whose highlight is gone.
         descriptorHighlights = descriptorHighlights.filter { $0.value.expiresAt > now }
-        if oldByID.isEmpty && descriptorHighlights.isEmpty { return incoming }
-        for id in newIDs.subtracting(oldIDs) {
+        descriptorGhosts = descriptorGhosts.filter { descriptorHighlights[$0.key]?.kind == .deleted }
+
+        // First population for this selection: no diff highlighting.
+        if liveDescriptorIDs.isEmpty && descriptorGhosts.isEmpty && descriptorHighlights.isEmpty {
+            liveDescriptorIDs = incomingIDs
+            return incoming
+        }
+
+        // Newly opened descriptors → green highlight.
+        for id in incomingIDs.subtracting(liveDescriptorIDs) {
             descriptorHighlights[id] = TimedListRowHighlight(kind: .new, expiresAt: expiry)
         }
-        for id in oldIDs.subtracting(newIDs) {
+        // A reappearing descriptor is live again; clear any ghost/deleted state.
+        for id in incomingIDs where descriptorGhosts[id] != nil {
+            descriptorGhosts[id] = nil
+        }
+        // Newly closed descriptors → red highlight + ghost row.
+        for id in liveDescriptorIDs.subtracting(incomingIDs) {
+            if let fd = descriptors.first(where: { descriptorKey($0) == id }) {
+                descriptorGhosts[id] = fd
+            }
             descriptorHighlights[id] = TimedListRowHighlight(kind: .deleted, expiresAt: expiry)
         }
-        let deletedRows = oldByID.values.filter { descriptorHighlights[descriptorKey($0)]?.kind == .deleted }
-        return incoming + deletedRows
+
+        liveDescriptorIDs = incomingIDs
+
+        // Keep only ghosts whose deleted highlight is still active.
+        let ghostRows = descriptorGhosts.compactMap { id, fd -> FileDescriptorInfo? in
+            guard let highlight = descriptorHighlights[id],
+                  highlight.kind == .deleted,
+                  highlight.expiresAt > now else { return nil }
+            return fd
+        }
+        return incoming + ghostRows
     }
 
     private func descriptorKey(_ fd: FileDescriptorInfo) -> String {

@@ -639,36 +639,114 @@ enum Libproc {
         return ProcArgs(arguments: arguments, environment: environment)
     }
 
-    // MARK: - ASCII strings from an on-disk executable
+    // MARK: - Printable strings from an on-disk executable
 
-    static func strings(atPath path: String, limit: Int = 8 * 1024 * 1024, minLength: Int = 4) -> [String] {
+    static func strings(atPath path: String, minLength: Int = 3) -> [String] {
         guard let handle = FileHandle(forReadingAtPath: path) else { return [] }
         defer { try? handle.close() }
-        let data: Data
-        if #available(macOS 10.15.4, *) {
-            data = (try? handle.read(upToCount: limit)) ?? Data()
-        } else {
-            data = handle.readData(ofLength: limit)
-        }
-        guard !data.isEmpty else { return [] }
+        let chunkSize = 65_536 + 8
+        let overlap = UInt64(max(0, minLength - 1))
+        var result: [String] = []
 
+        while true {
+            let data = handle.readData(ofLength: chunkSize)
+            guard !data.isEmpty else { break }
+            result.append(contentsOf: scanBufferForStrings(Array(data), minLength: minLength))
+
+            if data.count == chunkSize, overlap > 0 {
+                let offset = handle.offsetInFile
+                handle.seek(toFileOffset: offset > overlap ? offset - overlap : 0)
+            }
+        }
+        return result
+    }
+
+    private static func scanBufferForStrings(_ bytes: [UInt8], minLength: Int) -> [String] {
+        guard bytes.count >= minLength else { return [] }
+        var result: [String] = []
+        result.append(contentsOf: scanUTF16Strings(in: bytes, minLength: minLength))
+        result.append(contentsOf: scanASCIIStrings(in: bytes, minLength: minLength))
+        return result
+    }
+
+    private static func scanUTF16Strings(in bytes: [UInt8], minLength: Int) -> [String] {
+        var result: [String] = []
+        var sequenceStart: Int?
+        var index = 0
+
+        while index + 1 < bytes.count {
+            let low = bytes[index]
+            let high = bytes[index + 1]
+            if high == 0, isWindowsPrintable(low), low != 0x20 || sequenceStart != nil {
+                if sequenceStart == nil { sequenceStart = index }
+                index += 2
+                continue
+            }
+            if let start = sequenceStart {
+                appendUTF16String(bytes, from: start, to: index, minLength: minLength, result: &result)
+                sequenceStart = nil
+            }
+            index += 1
+        }
+        if let start = sequenceStart {
+            appendUTF16String(bytes, from: start, to: index, minLength: minLength, result: &result)
+        }
+        return result
+    }
+
+    private static func scanASCIIStrings(in bytes: [UInt8], minLength: Int) -> [String] {
         var result: [String] = []
         var current: [UInt8] = []
         current.reserveCapacity(64)
-        for byte in data {
-            if byte >= 0x20, byte < 0x7f {
+        for byte in bytes {
+            if isWindowsPrintable(byte), byte != 0x20 || !current.isEmpty {
                 current.append(byte)
             } else {
-                if current.count >= minLength {
-                    result.append(String(decoding: current, as: UTF8.self))
-                }
+                appendASCIIString(current, minLength: minLength, result: &result)
                 current.removeAll(keepingCapacity: true)
             }
         }
-        if current.count >= minLength {
-            result.append(String(decoding: current, as: UTF8.self))
-        }
+        appendASCIIString(current, minLength: minLength, result: &result)
         return result
+    }
+
+    private static func appendUTF16String(
+        _ bytes: [UInt8],
+        from start: Int,
+        to end: Int,
+        minLength: Int,
+        result: inout [String]
+    ) {
+        guard end - start >= minLength * 2 else { return }
+        var lowBytes: [UInt8] = []
+        lowBytes.reserveCapacity((end - start) / 2)
+        var alphaCount = 0
+        var index = start
+        while index + 1 < end {
+            let low = bytes[index]
+            let high = bytes[index + 1]
+            guard high == 0, isWindowsPrintable(low) else { break }
+            if isASCIIAlpha(low) { alphaCount += 1 }
+            lowBytes.append(low)
+            index += 2
+        }
+        guard lowBytes.count >= minLength, alphaCount >= minLength else { return }
+        result.append(String(decoding: lowBytes, as: UTF8.self))
+    }
+
+    private static func appendASCIIString(_ bytes: [UInt8], minLength: Int, result: inout [String]) {
+        guard bytes.count >= minLength else { return }
+        let alphaCount = bytes.reduce(0) { $0 + (isASCIIAlpha($1) ? 1 : 0) }
+        guard alphaCount >= minLength else { return }
+        result.append(String(decoding: bytes, as: UTF8.self))
+    }
+
+    private static func isWindowsPrintable(_ byte: UInt8) -> Bool {
+        byte >= 0x20 && byte <= 0x7e
+    }
+
+    private static func isASCIIAlpha(_ byte: UInt8) -> Bool {
+        (byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a)
     }
 
     // MARK: - Host / system

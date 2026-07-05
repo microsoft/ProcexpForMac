@@ -123,7 +123,96 @@ The fixture opens a loopback listener, creates a loopback established connection
 
 ## Privileged Helper
 
-The app can use an optional privileged helper for operations that require elevated privileges, such as richer cross-user detail and privileged process control. Helper registration requires a properly signed build. See [Helper/README.md](Helper/README.md) and [docs/RELEASE.md](docs/RELEASE.md) for signing and deployment details.
+The app can use an optional privileged root helper for operations that require
+elevated privileges, such as richer cross-user process detail (full process
+list, threads, modules, environment) and privileged process control. The helper
+is a launchd daemon reached over XPC; the app registers it with `SMAppService`.
+
+macOS gates `SMAppService` daemon registration on the app's code signature, so
+the helper only registers from a build signed with a **Developer ID Application**
+certificate. The sections below cover both the real signed install and a
+high-fidelity local test.
+
+### Testing with a Developer ID certificate (real install)
+
+This is the same experience end users get.
+
+```sh
+DEV_SIGN_IDENTITY="Developer ID Application: NAME (TEAMID)" \
+bash Scripts/dev_install_helper.sh
+```
+
+This builds a Release app, embeds the helper and its launchd plist at
+`Contents/Library/LaunchDaemons/`, signs everything inside-out with the Hardened
+Runtime and entitlements, installs to `/Applications`, and launches it. Then, in
+the app, choose **ProcexpMac ▸ Install Privileged Helper…** and approve the
+daemon in **System Settings ▸ General ▸ Login Items & Extensions**. After
+approval the app adopts the privileged provider and shows all processes.
+
+### Testing without a Developer ID certificate (local self-signed)
+
+For local development you can exercise the same privileged code path with a
+throwaway self-signed identity. On first run the script creates the identity in
+a dedicated keychain (no login-keychain involvement), builds a signed,
+helper-embedded app, installs it to `/Applications`, and launches it:
+
+```sh
+bash Scripts/dev_install_helper.sh
+```
+
+Then, one time only, choose **ProcexpMac ▸ Install Privileged Helper…** and
+approve the daemon in **System Settings ▸ General ▸ Login Items & Extensions**.
+After that, every subsequent run of the script rebuilds and relaunches the
+signed app with the helper already enabled, so the elevated path is available on
+each iteration:
+
+```sh
+bash Scripts/dev_install_helper.sh          # Debug (default), fast
+CONFIGURATION=Release bash Scripts/dev_install_helper.sh
+RESTART_HELPER=1 bash Scripts/dev_install_helper.sh   # after changing helper code
+```
+
+Notes:
+- The script defaults to a **Debug** build signed with the **"ProcexpMac Dev"**
+  self-signed identity. It installs to `/Applications` because `SMAppService`
+  ties the daemon registration to the app's signature and location, so
+  reinstalling the same-identity build keeps the helper registered.
+- The app changes take effect on relaunch; the root **helper** keeps running its
+  already-loaded binary, so pass `RESTART_HELPER=1` (prompts for sudo) when you
+  change the helper's own code.
+- A corporate-managed Mac can prompt for a keychain password when `codesign`
+  touches your login keychain and reject your account password if the login
+  keychain drifted out of sync after a rotation. The dedicated keychain the
+  script creates avoids that entirely.
+
+### Verifying and cleaning up
+
+Check whether the daemon is registered and running as root:
+
+```sh
+launchctl print system/com.sysinternals.procexpmac.helper
+```
+
+If registration succeeded, the process list shows previously hidden cross-user
+and system processes. If it was refused (for example, an untrusted signature),
+the app reports that the helper could not be registered and continues in
+unprivileged mode.
+
+Remove the installed app and unregister the helper:
+
+```sh
+bash Scripts/dev_uninstall_helper.sh
+```
+
+Remove the throwaway signing keychain when finished:
+
+```sh
+security delete-keychain "$HOME/Library/Keychains/procexp-dev.keychain-db"
+```
+
+See [Helper/README.md](Helper/README.md) and [docs/RELEASE.md](docs/RELEASE.md)
+for the helper architecture and the full Developer ID signing/notarization
+pipeline.
 
 ## Release Build
 

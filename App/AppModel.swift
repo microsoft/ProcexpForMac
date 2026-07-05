@@ -549,7 +549,7 @@ final class AppModel {
         let system = self.system
         streamTask = Task { @MainActor in
             for await snap in provider.snapshots(interval: interval) {
-                let enriched = self.enrichWithSignatures(self.enrichWithAutostart(self.enrichWithCommandLines(snap)))
+                let enriched = self.enrichWithSignatures(self.enrichWithAutostart(self.enrichWithCommandLines(self.enrichWithOwnership(snap))))
                 self.snapshot = enriched
                 let stats = await system.stats()
                 self.systemHistoryTimestamps.append(Date())
@@ -611,7 +611,7 @@ final class AppModel {
     func forceRefresh() async {
         let provider: any ProcessDataProviding = data
         let snap = await provider.snapshot()
-        self.snapshot = self.enrichWithSignatures(self.enrichWithAutostart(self.enrichWithCommandLines(snap)))
+        self.snapshot = self.enrichWithSignatures(self.enrichWithAutostart(self.enrichWithCommandLines(self.enrichWithOwnership(snap))))
         let stats = await system.stats()
         systemHistoryTimestamps.append(Date())
         cpuHistory.append(stats.cpuTotalPercent)
@@ -861,6 +861,32 @@ final class AppModel {
             }
         }
 
+        return ProcessSnapshot(
+            timestamp: snapshot.timestamp,
+            interval: snapshot.interval,
+            processes: processes,
+            roots: snapshot.roots,
+            children: snapshot.children,
+            system: snapshot.system
+        )
+    }
+
+    /// `.ownProcess` (blue) means "owned by the user running Process Explorer".
+    /// It is inherently relative to the person viewing the app, so it must be
+    /// computed from the app's own UID — never the sampler's. The privileged
+    /// helper samples as root (UID 0), so it cannot set this correctly; recompute
+    /// it here for every record so the flag is right under both the unprivileged
+    /// and privileged providers.
+    private func enrichWithOwnership(_ snapshot: ProcessSnapshot) -> ProcessSnapshot {
+        let viewerUID = getuid()
+        var processes = snapshot.processes
+        for (id, record) in snapshot.processes {
+            if record.uid == viewerUID {
+                processes[id]?.flags.insert(.ownProcess)
+            } else {
+                processes[id]?.flags.remove(.ownProcess)
+            }
+        }
         return ProcessSnapshot(
             timestamp: snapshot.timestamp,
             interval: snapshot.interval,

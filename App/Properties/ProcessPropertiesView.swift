@@ -195,7 +195,7 @@ struct ProcessPropertiesView: View {
         case .tcpip:            TCPIPTab(detail: detail).padding(8)
         case .security:         SecurityTab(record: record, detail: detail).padding(8)
         case .environment:      EnvironmentTab(detail: detail).padding(8)
-        case .strings:          StringsTab(detail: detail).padding(8)
+        case .strings:          StringsTab(pid: pid, detail: detail).padding(8)
         }
     }
 }

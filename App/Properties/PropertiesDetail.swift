@@ -99,6 +99,8 @@ final class PropertiesDetail {
     var environmentNote: String?
     var strings: [String] = []
     var stringsNote: String?
+    var isLoadingStrings = false
+    private var stringsLoaded = false
 
     // Image-tab derived facts (resolved once from the on-disk image).
     var buildTime: String?
@@ -144,6 +146,11 @@ final class PropertiesDetail {
         signing: any SigningProviding,
         autostart: any AutostartProviding
     ) async {
+        strings = []
+        stringsNote = nil
+        stringsLoaded = false
+        isLoadingStrings = false
+
         if let record {
             securityIdentity = Self.securityIdentity(pid: pid, record: record)
         } else {
@@ -167,15 +174,6 @@ final class PropertiesDetail {
             environmentNote = "Environment unavailable: \(describe(error))"
         }
 
-        do {
-            let extracted = try await data.strings(of: pid)
-            strings = extracted
-            stringsNote = extracted.isEmpty ? "No printable strings were extracted from the image." : nil
-        } catch {
-            strings = []
-            stringsNote = "Strings unavailable: \(describe(error))"
-        }
-
         // On-disk image facts (best-effort — omitted in the UI when nil).
         if let path = record?.executablePath, !path.isEmpty {
             buildTime = Self.fileModificationDate(path).map(ByteFormat.dateTime)
@@ -197,6 +195,24 @@ final class PropertiesDetail {
 
         if let path = record?.executablePath, !path.isEmpty {
             await verifySignature(path: path, signing: signing)
+        }
+    }
+
+    func loadStringsIfNeeded(pid: ProcessID, data: any ProcessDataProviding) async {
+        guard !stringsLoaded, !isLoadingStrings else { return }
+        isLoadingStrings = true
+        stringsNote = nil
+        defer {
+            isLoadingStrings = false
+            stringsLoaded = true
+        }
+        do {
+            let extracted = try await data.strings(of: pid)
+            strings = extracted
+            stringsNote = extracted.isEmpty ? "No printable strings were extracted from the image." : nil
+        } catch {
+            strings = []
+            stringsNote = "Strings unavailable: \(describe(error))"
         }
     }
 

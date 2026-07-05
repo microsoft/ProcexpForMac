@@ -46,6 +46,9 @@ if [[ ! -d "$APP" ]]; then
 fi
 echo "==> Built: $APP"
 
+echo "==> Embedding privileged helper (W13)…"
+bash "$REPO_ROOT/Scripts/embed_helper.sh" "$APP"
+
 echo "==> Staging DMG contents…"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"

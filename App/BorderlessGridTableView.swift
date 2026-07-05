@@ -12,9 +12,9 @@ enum ListRowHighlightKind {
     var color: NSColor {
         switch self {
         case .new:
-            return NSColor(srgbRed: 198 / 255, green: 246 / 255, blue: 198 / 255, alpha: 1)
+            return NSColor(srgbRed: 120 / 255, green: 210 / 255, blue: 120 / 255, alpha: 1)
         case .deleted:
-            return NSColor(srgbRed: 246 / 255, green: 198 / 255, blue: 198 / 255, alpha: 1)
+            return NSColor(srgbRed: 226 / 255, green: 96 / 255, blue: 96 / 255, alpha: 1)
         }
     }
 }

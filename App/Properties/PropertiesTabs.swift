@@ -138,6 +138,10 @@ private struct VisibleScrollbarScrollView<Content: View>: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
+    private final class FlippedDocumentView: NSView {
+        override var isFlipped: Bool { true }
+    }
+
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.borderType = .noBorder
@@ -150,14 +154,13 @@ private struct VisibleScrollbarScrollView<Content: View>: NSViewRepresentable {
 
         let hosting = NSHostingView(rootView: content)
         hosting.translatesAutoresizingMaskIntoConstraints = false
-        let document = NSView()
+        let document = FlippedDocumentView()
         document.translatesAutoresizingMaskIntoConstraints = false
         document.addSubview(hosting)
         NSLayoutConstraint.activate([
             hosting.leadingAnchor.constraint(equalTo: document.leadingAnchor),
             hosting.trailingAnchor.constraint(equalTo: document.trailingAnchor),
             hosting.topAnchor.constraint(equalTo: document.topAnchor),
-            hosting.bottomAnchor.constraint(equalTo: document.bottomAnchor),
         ])
         scrollView.documentView = document
         context.coordinator.hostingView = hosting
@@ -169,23 +172,115 @@ private struct VisibleScrollbarScrollView<Content: View>: NSViewRepresentable {
         context.coordinator.hostingView?.rootView = content
         guard let document = context.coordinator.documentView,
               let hosting = context.coordinator.hostingView else { return }
-        let width = max(1, scrollView.contentSize.width)
-        let fitting = hosting.fittingSize
-        let height = max(1, fitting.height)
-        let needsScroller = height > scrollView.contentSize.height + 0.5
-        if scrollView.hasVerticalScroller != needsScroller {
-            scrollView.hasVerticalScroller = needsScroller
-        }
+        let width = max(1, scrollView.contentView.bounds.width)
+        hosting.setFrameSize(NSSize(width: width, height: 1))
+        hosting.layoutSubtreeIfNeeded()
+        let height = max(1, ceil(hosting.fittingSize.height))
         document.setFrameSize(NSSize(width: width, height: height))
         hosting.setFrameSize(NSSize(width: width, height: height))
-        if !needsScroller {
+        let needsScroller = height > scrollView.contentView.bounds.height + 0.5
+        setVerticalScroller(needsScroller, on: scrollView)
+        if !context.coordinator.didScrollToInitialTop || !needsScroller {
+            scrollToTop(scrollView)
+            context.coordinator.didScrollToInitialTop = true
+        }
+    }
+
+    private func setVerticalScroller(_ visible: Bool, on scrollView: NSScrollView) {
+        if scrollView.hasVerticalScroller != visible {
+            scrollView.hasVerticalScroller = visible
+        }
+        scrollView.verticalScroller?.isHidden = !visible
+    }
+
+    private func scrollToTop(_ scrollView: NSScrollView) {
+        guard let document = scrollView.documentView else { return }
+        let y = document.isFlipped
+            ? CGFloat.zero
+            : max(0, document.bounds.height - scrollView.contentView.bounds.height)
+        scrollView.contentView.scroll(to: NSPoint(x: 0, y: y))
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+    }
+
+    final class Coordinator {
+        var hostingView: NSHostingView<Content>?
+        weak var documentView: NSView?
+        var didScrollToInitialTop = false
+    }
+}
+
+/// A vertical scroll container whose scrollbar is always visible (legacy style)
+/// while overflowing, regardless of the system "Show scroll bars" preference.
+/// Intended to be used inside a `ViewThatFits`, so it only renders when the
+/// content is actually taller than the available space.
+private struct AlwaysVisibleVerticalScrollView<Content: View>: NSViewRepresentable {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    private final class FlippedDocumentView: NSView {
+        override var isFlipped: Bool { true }
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.borderType = .noBorder
+        scrollView.drawsBackground = false
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = false
+        scrollView.scrollerStyle = .legacy
+        scrollView.verticalScrollElasticity = .allowed
+
+        let hosting = NSHostingView(rootView: content)
+        hosting.translatesAutoresizingMaskIntoConstraints = false
+        let document = FlippedDocumentView()
+        document.translatesAutoresizingMaskIntoConstraints = false
+        document.addSubview(hosting)
+        NSLayoutConstraint.activate([
+            hosting.leadingAnchor.constraint(equalTo: document.leadingAnchor),
+            hosting.trailingAnchor.constraint(equalTo: document.trailingAnchor),
+            hosting.topAnchor.constraint(equalTo: document.topAnchor),
+        ])
+        scrollView.documentView = document
+        context.coordinator.hostingView = hosting
+        context.coordinator.documentView = document
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.hostingView?.rootView = content
+        guard let document = context.coordinator.documentView,
+              let hosting = context.coordinator.hostingView else { return }
+        // Reserve room for the legacy scroller so content isn't clipped under it.
+        let scrollerWidth = NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+        let width = max(1, scrollView.contentView.bounds.width)
+        hosting.setFrameSize(NSSize(width: width, height: 1))
+        hosting.layoutSubtreeIfNeeded()
+        let height = max(1, ceil(hosting.fittingSize.height))
+        document.setFrameSize(NSSize(width: width, height: height))
+        hosting.setFrameSize(NSSize(width: width, height: height))
+        // Keep the persistent scroller visible while overflowing.
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = false
+        scrollView.scrollerStyle = .legacy
+        scrollView.verticalScroller?.isHidden = false
+        _ = scrollerWidth
+        if !context.coordinator.didScrollToInitialTop {
             scrollView.contentView.scroll(to: .zero)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+            context.coordinator.didScrollToInitialTop = true
         }
     }
 
     final class Coordinator {
         var hostingView: NSHostingView<Content>?
         weak var documentView: NSView?
+        var didScrollToInitialTop = false
     }
 }
 
@@ -576,14 +671,204 @@ struct ThreadsTab: View {
                     .multilineTextAlignment(.center)
                     .padding()
             } else {
-                Table(detail.threads, selection: $selectedThreads) {
-                    TableColumn("TID") { thread in tooltipText(String(thread.id), selected: selectedThreads.contains(thread.id)).monospacedDigit() }
-                    TableColumn("CPU %") { thread in tooltipText(String(format: "%.2f", thread.cpuPercent), selected: selectedThreads.contains(thread.id)).monospacedDigit() }
-                    TableColumn("State") { thread in tooltipText(thread.state.isEmpty ? "—" : thread.state, selected: selectedThreads.contains(thread.id)) }
-                }
+                ThreadRowsTable(threads: detail.threads, selection: $selectedThreads)
             }
         }
         .padding(8)
+    }
+}
+
+private struct ThreadRowsTable: NSViewRepresentable {
+    let threads: [ThreadInfo]
+    @Binding var selection: Set<ThreadInfo.ID>
+
+    func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = false
+        scrollView.scrollerStyle = .legacy
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = .textBackgroundColor
+
+        let tableView = BorderlessGridTableView()
+        context.coordinator.tableView = tableView
+        tableView.delegate = context.coordinator
+        tableView.dataSource = context.coordinator
+        tableView.headerView = ResizingCursorTableHeaderView()
+        tableView.rowHeight = 20
+        tableView.usesAlternatingRowBackgroundColors = false
+        tableView.backgroundColor = .textBackgroundColor
+        tableView.gridStyleMask = []
+        tableView.intercellSpacing = NSSize(width: 0, height: 0)
+        tableView.allowsColumnResizing = true
+        tableView.allowsColumnReordering = true
+        tableView.allowsMultipleSelection = true
+        tableView.typeSelectHandler = { text in context.coordinator.handleTypeSelect(text) }
+        for column in Coordinator.columns { tableView.addTableColumn(column.tableColumn) }
+        scrollView.documentView = tableView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.threads = threads
+        context.coordinator.selection = $selection
+        context.coordinator.tableView?.reloadData()
+        context.coordinator.applySelection()
+        context.coordinator.updateScrollers(in: scrollView)
+        let coordinator = context.coordinator
+        DispatchQueue.main.async { [weak scrollView] in
+            guard let scrollView else { return }
+            coordinator.updateScrollers(in: scrollView)
+        }
+    }
+
+    final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+        struct ColumnDef {
+            let id: String
+            let title: String
+            let width: CGFloat
+
+            var tableColumn: NSTableColumn {
+                let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
+                column.title = title
+                column.width = width
+                column.minWidth = min(width, 70)
+                column.resizingMask = [.userResizingMask, .autoresizingMask]
+                return column
+            }
+        }
+
+        static let columns = [
+            ColumnDef(id: "tid", title: "TID", width: 120),
+            ColumnDef(id: "cpu", title: "CPU %", width: 90),
+            ColumnDef(id: "state", title: "State", width: 180),
+        ]
+
+        var threads: [ThreadInfo] = []
+        var selection: Binding<Set<ThreadInfo.ID>>
+        weak var tableView: NSTableView?
+        private var suppressSelectionUpdate = false
+        private let typeSelectBuffer = TypeSelectBuffer()
+
+        init(selection: Binding<Set<ThreadInfo.ID>>) {
+            self.selection = selection
+        }
+
+        func numberOfRows(in tableView: NSTableView) -> Int { threads.count }
+
+        func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+            guard threads.indices.contains(row), let tableColumn else { return nil }
+            let cell = tableView.makeView(withIdentifier: tableColumn.identifier, owner: self) as? NSTableCellView ?? makeCell(id: tableColumn.identifier)
+            let value = text(for: tableColumn.identifier.rawValue, thread: threads[row])
+            cell.textField?.stringValue = value
+            cell.textField?.toolTip = value.isEmpty ? nil : value
+            cell.toolTip = value.isEmpty ? nil : value
+            return cell
+        }
+
+        func tableViewSelectionDidChange(_ notification: Notification) {
+            guard !suppressSelectionUpdate, let tableView else { return }
+            var selected = Set<ThreadInfo.ID>()
+            for index in tableView.selectedRowIndexes where threads.indices.contains(index) {
+                selected.insert(threads[index].id)
+            }
+            selection.wrappedValue = selected
+        }
+
+        func applySelection() {
+            guard let tableView else { return }
+            let indexes = IndexSet(threads.indices.filter { selection.wrappedValue.contains(threads[$0].id) })
+            suppressSelectionUpdate = true
+            tableView.selectRowIndexes(indexes, byExtendingSelection: false)
+            suppressSelectionUpdate = false
+        }
+
+        func updateScrollers(in scrollView: NSScrollView) {
+            guard let tableView else { return }
+            let visibleHeight = scrollView.contentView.bounds.height
+            let visibleWidth = scrollView.contentView.bounds.width
+            guard visibleHeight > 1, visibleWidth > 1 else {
+                setScroller(.vertical, visible: false, on: scrollView)
+                setScroller(.horizontal, visible: false, on: scrollView)
+                return
+            }
+            let headerHeight = tableView.headerView?.frame.height ?? 0
+            let contentHeight = headerHeight + CGFloat(threads.count) * tableView.rowHeight
+            let needsVerticalScroller = contentHeight > visibleHeight + 0.5
+            setScroller(.vertical, visible: needsVerticalScroller, on: scrollView)
+
+            let contentWidth = tableView.tableColumns.reduce(CGFloat.zero) { $0 + $1.width } + CGFloat(max(0, tableView.tableColumns.count - 1)) * tableView.intercellSpacing.width
+            let needsHorizontalScroller = contentWidth > visibleWidth + 0.5
+            setScroller(.horizontal, visible: needsHorizontalScroller, on: scrollView)
+        }
+
+        private enum ScrollerAxis { case vertical, horizontal }
+
+        private func setScroller(_ axis: ScrollerAxis, visible: Bool, on scrollView: NSScrollView) {
+            switch axis {
+            case .vertical:
+                if scrollView.hasVerticalScroller != visible { scrollView.hasVerticalScroller = visible }
+                scrollView.verticalScroller?.isHidden = !visible
+            case .horizontal:
+                if scrollView.hasHorizontalScroller != visible { scrollView.hasHorizontalScroller = visible }
+                scrollView.horizontalScroller?.isHidden = !visible
+            }
+        }
+
+        func handleTypeSelect(_ text: String) -> Bool {
+            let prefix = typeSelectBuffer.append(text)
+            if selectNext(matching: prefix) { return true }
+            return selectNext(matching: typeSelectBuffer.reset(to: text))
+        }
+
+        private func selectNext(matching prefix: String) -> Bool {
+            guard !threads.isEmpty, let tableView else { return false }
+            let start = tableView.selectedRow >= 0 ? tableView.selectedRow : -1
+            for offset in 1...threads.count {
+                let index = (start + offset) % threads.count
+                let thread = threads[index]
+                if String(thread.id).hasPrefix(prefix) || thread.state.lowercased().hasPrefix(prefix) {
+                    tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+                    tableView.scrollRowToVisible(index)
+                    selection.wrappedValue = [thread.id]
+                    return true
+                }
+            }
+            return false
+        }
+
+        private func makeCell(id: NSUserInterfaceItemIdentifier) -> NSTableCellView {
+            let cell = NSTableCellView(frame: .zero)
+            cell.identifier = id
+            let textField = NSTextField(labelWithString: "")
+            textField.translatesAutoresizingMaskIntoConstraints = false
+            textField.lineBreakMode = .byTruncatingTail
+            textField.usesSingleLineMode = true
+            textField.cell?.wraps = false
+            textField.font = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+            textField.textColor = .labelColor
+            cell.addSubview(textField)
+            cell.textField = textField
+            NSLayoutConstraint.activate([
+                textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 6),
+                textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
+                textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+            ])
+            return cell
+        }
+
+        private func text(for id: String, thread: ThreadInfo) -> String {
+            switch id {
+            case "tid": return String(thread.id)
+            case "cpu": return String(format: "%.2f", thread.cpuPercent)
+            case "state": return thread.state.isEmpty ? "—" : thread.state
+            default: return ""
+            }
+        }
     }
 }
 
@@ -618,9 +903,9 @@ private struct SocketRowsTable: NSViewRepresentable {
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.borderType = .noBorder
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = true
-        scrollView.autohidesScrollers = true
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.autohidesScrollers = false
         scrollView.scrollerStyle = .legacy
         scrollView.drawsBackground = true
         scrollView.backgroundColor = .textBackgroundColor
@@ -1031,7 +1316,9 @@ private struct EnvironmentRowsTable: NSViewRepresentable {
 // MARK: - Strings tab
 
 struct StringsTab: View {
+    let pid: ProcessID
     @Bindable var detail: PropertiesDetail
+    @Environment(AppModel.self) private var model
     @State private var filter = ""
     @State private var selectedRows = Set<Int>()
 
@@ -1054,8 +1341,11 @@ struct StringsTab: View {
                     .disabled(filtered.isEmpty)
             }
 
-            if detail.strings.isEmpty {
-                Text(detail.stringsNote ?? "No strings.")
+            if detail.isLoadingStrings {
+                ProgressView("Scanning strings…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if detail.strings.isEmpty {
+                Text(detail.stringsNote ?? "Select the tab to scan image strings.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1063,21 +1353,11 @@ struct StringsTab: View {
                 Text("Image strings (memory strings require the privileged helper).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                VisibleScrollbarScrollView {
-                    LazyVStack(alignment: .leading, spacing: 2) {
-                        ForEach(Array(filtered.enumerated()), id: \.offset) { offset, line in
-                            tooltipText(line, selected: selectedRows.contains(offset))
-                                .font(.system(.caption, design: .monospaced))
-                                .textSelection(.enabled)
-                                .lineLimit(1)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
-                                .tag(offset)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
+                StringsRowsTable(strings: filtered, selection: $selectedRows)
             }
+        }
+        .task(id: pid) {
+            await detail.loadStringsIfNeeded(pid: pid, data: model.data)
         }
     }
 
@@ -1088,6 +1368,156 @@ struct StringsTab: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let text = filtered.joined(separator: "\n")
         try? text.write(to: url, atomically: true, encoding: .utf8)
+    }
+}
+
+private struct StringsRowsTable: NSViewRepresentable {
+    let strings: [String]
+    @Binding var selection: Set<Int>
+
+    func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.scrollerStyle = .legacy
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = .textBackgroundColor
+
+        let tableView = BorderlessGridTableView()
+        context.coordinator.tableView = tableView
+        tableView.delegate = context.coordinator
+        tableView.dataSource = context.coordinator
+        tableView.headerView = nil
+        tableView.rowHeight = 18
+        tableView.usesAlternatingRowBackgroundColors = false
+        tableView.backgroundColor = .textBackgroundColor
+        tableView.gridStyleMask = []
+        tableView.intercellSpacing = NSSize(width: 0, height: 0)
+        tableView.allowsColumnResizing = false
+        tableView.allowsMultipleSelection = true
+        tableView.typeSelectHandler = { text in context.coordinator.handleTypeSelect(text) }
+
+        let column = NSTableColumn(identifier: Coordinator.columnID)
+        column.title = "Strings"
+        column.minWidth = 120
+        column.width = 600
+        column.resizingMask = [.autoresizingMask]
+        tableView.addTableColumn(column)
+        scrollView.documentView = tableView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.strings = strings
+        context.coordinator.selection = $selection
+        context.coordinator.tableView?.reloadData()
+        context.coordinator.applySelection()
+        context.coordinator.updateScrollers(in: scrollView)
+    }
+
+    final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+        static let columnID = NSUserInterfaceItemIdentifier("string")
+
+        var strings: [String] = []
+        var selection: Binding<Set<Int>>
+        weak var tableView: NSTableView?
+        private var suppressSelectionUpdate = false
+        private let typeSelectBuffer = TypeSelectBuffer()
+
+        init(selection: Binding<Set<Int>>) {
+            self.selection = selection
+        }
+
+        func numberOfRows(in tableView: NSTableView) -> Int { strings.count }
+
+        func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+            guard strings.indices.contains(row), tableColumn != nil else { return nil }
+            let cell = tableView.makeView(withIdentifier: Self.columnID, owner: self) as? NSTableCellView ?? makeCell()
+            let value = strings[row]
+            cell.textField?.stringValue = value
+            cell.textField?.toolTip = value.isEmpty ? nil : value
+            cell.toolTip = value.isEmpty ? nil : value
+            return cell
+        }
+
+        func tableViewSelectionDidChange(_ notification: Notification) {
+            guard !suppressSelectionUpdate, let tableView else { return }
+            selection.wrappedValue = Set(tableView.selectedRowIndexes.filter { strings.indices.contains($0) })
+        }
+
+        func applySelection() {
+            guard let tableView else { return }
+            suppressSelectionUpdate = true
+            tableView.selectRowIndexes(IndexSet(selection.wrappedValue.filter { strings.indices.contains($0) }), byExtendingSelection: false)
+            suppressSelectionUpdate = false
+        }
+
+        func updateScrollers(in scrollView: NSScrollView) {
+            guard let tableView, let column = tableView.tableColumns.first else { return }
+            let font = NSFont.monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+            let visibleWidth = scrollView.contentSize.width
+            var width = max(visibleWidth, column.minWidth)
+            for string in strings {
+                width = max(width, ceil((string as NSString).size(withAttributes: [.font: font]).width) + 18)
+            }
+            column.width = width
+
+            let height = CGFloat(strings.count) * tableView.rowHeight
+            let needsVerticalScroller = height > scrollView.contentSize.height + 0.5
+            if scrollView.hasVerticalScroller != needsVerticalScroller {
+                scrollView.hasVerticalScroller = needsVerticalScroller
+            }
+
+            let needsHorizontalScroller = width > scrollView.contentSize.width + 0.5
+            if scrollView.hasHorizontalScroller != needsHorizontalScroller {
+                scrollView.hasHorizontalScroller = needsHorizontalScroller
+            }
+        }
+
+        func handleTypeSelect(_ text: String) -> Bool {
+            let prefix = typeSelectBuffer.append(text)
+            if selectNext(matching: prefix) { return true }
+            return selectNext(matching: typeSelectBuffer.reset(to: text))
+        }
+
+        private func selectNext(matching prefix: String) -> Bool {
+            guard !strings.isEmpty, let tableView else { return false }
+            let start = tableView.selectedRow >= 0 ? tableView.selectedRow : -1
+            for offset in 1...strings.count {
+                let index = (start + offset) % strings.count
+                if strings[index].lowercased().hasPrefix(prefix) {
+                    tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+                    tableView.scrollRowToVisible(index)
+                    selection.wrappedValue = [index]
+                    return true
+                }
+            }
+            return false
+        }
+
+        private func makeCell() -> NSTableCellView {
+            let cell = NSTableCellView(frame: .zero)
+            cell.identifier = Self.columnID
+            let textField = NSTextField(labelWithString: "")
+            textField.translatesAutoresizingMaskIntoConstraints = false
+            textField.lineBreakMode = .byClipping
+            textField.usesSingleLineMode = true
+            textField.cell?.wraps = false
+            textField.font = .monospacedSystemFont(ofSize: NSFont.smallSystemFontSize, weight: .regular)
+            textField.textColor = .labelColor
+            cell.addSubview(textField)
+            cell.textField = textField
+            NSLayoutConstraint.activate([
+                textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 6),
+                textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -6),
+                textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+            ])
+            return cell
+        }
     }
 }
 
@@ -1109,13 +1539,21 @@ struct SecurityTab: View {
     @Bindable var detail: PropertiesDetail
 
     var body: some View {
-        VisibleScrollbarScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                identitySection
-                entitlementsSection
-                sandboxRuntimeSection
+        ViewThatFits(in: .vertical) {
+            securityContent
+            AlwaysVisibleVerticalScrollView {
+                securityContent
             }
         }
+    }
+
+    private var securityContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            identitySection
+            entitlementsSection
+            sandboxRuntimeSection
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 
     @ViewBuilder private var identitySection: some View {

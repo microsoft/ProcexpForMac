@@ -191,7 +191,7 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
 
         var flags: ProcessFlags = []
         if uid == myUID { flags.insert(.ownProcess) }
-        if ppid == 1 && uid == 0 { flags.insert(.service) }
+        if Self.isSystemDaemon(ppid: ppid, uid: uid) { flags.insert(.service) }
         if !hasTaskInfo { flags.insert(.limitedTaskInfo) }
         let bsdFlags = bsd.pbi_flags
         let hasTTY = (bsdFlags & UInt32(PROC_FLAG_CONTROLT)) != 0
@@ -274,7 +274,7 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
 
         var flags: ProcessFlags = []
         if uid == myUID { flags.insert(.ownProcess) }
-        if ppid == 1 && uid == 0 { flags.insert(.service) }
+        if Self.isSystemDaemon(ppid: ppid, uid: uid) { flags.insert(.service) }
         if !hasTaskInfo { flags.insert(.limitedTaskInfo) }
         let bsdFlags = sbsd.pbsi_flags
         let hasTTY = (bsdFlags & UInt32(PROC_FLAG_CONTROLT)) != 0
@@ -327,12 +327,26 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
 
     private static func imageType(path: String?, ppid: pid_t, uid: uid_t) -> ImageType {
         guard let path else {
-            return (ppid == 1 && uid == 0) ? .daemon : .unknown
+            return isSystemDaemon(ppid: ppid, uid: uid) ? .daemon : .unknown
         }
         if path.contains(".app/Contents/MacOS/") { return .appBundle }
         if path.hasSuffix(".xpc") || path.contains(".xpc/Contents/MacOS/") { return .xpc }
-        if ppid == 1 && uid == 0 { return .daemon }
+        if isSystemDaemon(ppid: ppid, uid: uid) { return .daemon }
         return .cli
+    }
+
+    /// Whether a process looks like a launchd-managed system daemon (a
+    /// Process Explorer "service").
+    ///
+    /// A daemon is a direct child of launchd (`ppid == 1`) running under a
+    /// system account. macOS reserves UIDs below 500 for system/service
+    /// accounts — root plus the dedicated `_service` users such as
+    /// `_corespeechd`, `_locationd`, and `_coreaudiod` — while real user
+    /// accounts start at 501. Gating on root alone (`uid == 0`) misses the many
+    /// system daemons that run under a non-root service account for privilege
+    /// separation, so they would not be colored as services.
+    private static func isSystemDaemon(ppid: pid_t, uid: uid_t) -> Bool {
+        ppid == 1 && uid < 500
     }
 
     // MARK: - Per-selection detail
@@ -385,6 +399,8 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
 
     public func strings(of id: ProcessID) async throws -> [String] {
         guard let path = Libproc.path(id.pid) else { return [] }
-        return Libproc.strings(atPath: path)
+        return await Task.detached(priority: .userInitiated) {
+            Libproc.strings(atPath: path)
+        }.value
     }
 }
