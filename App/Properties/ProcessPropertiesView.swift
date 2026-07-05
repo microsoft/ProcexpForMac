@@ -160,6 +160,8 @@ struct ProcessPropertiesView: View {
                 } label: {
                     Text(tab.rawValue)
                         .font(.system(size: 11, weight: selected ? .semibold : .regular))
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(

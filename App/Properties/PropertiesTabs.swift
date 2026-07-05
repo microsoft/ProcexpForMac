@@ -527,6 +527,7 @@ struct ThreadsTab: View {
                 }
             }
         }
+        .padding(8)
     }
 }
 
