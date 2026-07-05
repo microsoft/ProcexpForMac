@@ -139,6 +139,7 @@ struct MainWindowView: View {
                            columns: model.columns,
                            colorRules: model.colorRules,
                            treeMode: model.showProcessTree,
+                           treeSortResetToken: model.processTreeSortResetToken,
                            searchText: searchText) { command, pid in
             handle(command, pid)
         }
@@ -153,16 +154,22 @@ struct MainWindowView: View {
     private var toolbar: some View {
         @Bindable var model = model
         return HStack(spacing: 6) {
-            iconButton("save", tip: "Save the process list to a file… (⌘S)") {
+            iconButton("save",
+                       tip: "Save (⌘S)",
+                       shortcut: .init("s", modifiers: .command)) {
                 saveProcessList()
             }
-            iconButton("refresh", tip: "Refresh now (F5)") {
+            iconButton("refresh",
+                       tip: "Refresh Now (F5)",
+                       shortcut: .init(KeyEquivalent(Character(UnicodeScalar(0xF708)!)), modifiers: [])) {
                 Task { await model.forceRefresh() }
             }
 
             toolbarDivider
 
-            iconButton("sysinfo", tip: "System Information — live graphs (⌘I)") {
+            iconButton("sysinfo",
+                       tip: "System Information (⌘I)",
+                       shortcut: .init("i", modifiers: .command)) {
                 model.systemInfoTab = .summary
                 openWindow(id: SystemInfoWindow.id)
             }
@@ -170,14 +177,17 @@ struct MainWindowView: View {
             toolbarDivider
 
             iconToggle("tree", isOn: model.showProcessTree,
-                       tip: "Show Process Tree (⌘T)") {
-                model.showProcessTree.toggle()
+                       tip: "Show Process Tree (⌥T)",
+                       shortcut: .init("t", modifiers: .option)) {
+                model.showProcessTreeView()
             }
-            iconButton("props", tip: "Process Properties…",
+            iconButton("props", tip: "Properties… (⌥↩)",
+                       shortcut: .init(.return, modifiers: .option),
                        disabled: model.selection == nil) {
                 if let pid = model.selection { openProperties(pid) }
             }
             iconButton("kill", tip: "Kill Process (Del)",
+                       shortcut: .init(.deleteForward, modifiers: []),
                        disabled: model.selection == nil) {
                 if let pid = model.selection {
                     coordinator.request(.kill, pid: pid, model: model)
@@ -187,13 +197,16 @@ struct MainWindowView: View {
             toolbarDivider
 
             iconToggle("split", isOn: model.showLowerPane,
-                       tip: "Show / hide the Lower Pane (⌘L)") {
+                       tip: "Show Lower Pane (⌘L)",
+                       shortcut: .init("l", modifiers: .command)) {
                 model.showLowerPane.toggle()
             }
 
             toolbarDivider
 
-            iconButton("find", tip: "Find Handle or DLL… (⌘F)") {
+            iconButton("find",
+                       tip: "Find Handle or DLL… (⌘F)",
+                       shortcut: .init("f", modifiers: .command)) {
                 openWindow(id: FindHandleDLLWindow.id)
             }
             iconToggle("target", isOn: model.targetWindowPickerActive,
@@ -265,27 +278,40 @@ struct MainWindowView: View {
     }
 
     /// A plain colored-icon toolbar button.
+    @ViewBuilder
     private func iconButton(_ asset: String,
                             tip: String,
+                            shortcut: KeyboardShortcut? = nil,
                             disabled: Bool = false,
                             action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        let button = Button(action: action) {
             Image(asset)
                 .resizable()
                 .interpolation(.high)
                 .frame(width: 18, height: 18)
         }
-        .buttonStyle(.borderless)
-        .disabled(disabled)
-        .help(tip)
+        if let shortcut {
+            button
+                .keyboardShortcut(shortcut)
+                .buttonStyle(.borderless)
+                .disabled(disabled)
+                .help(tip)
+        } else {
+            button
+                .buttonStyle(.borderless)
+                .disabled(disabled)
+                .help(tip)
+        }
     }
 
     /// A colored-icon toggle button that highlights while active.
+    @ViewBuilder
     private func iconToggle(_ asset: String,
                             isOn: Bool,
                             tip: String,
+                            shortcut: KeyboardShortcut? = nil,
                             action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        let button = Button(action: action) {
             Image(asset)
                 .resizable()
                 .interpolation(.high)
@@ -296,8 +322,16 @@ struct MainWindowView: View {
                         .fill(isOn ? Color.accentColor.opacity(0.30) : Color.clear)
                 }
         }
-        .buttonStyle(.borderless)
-        .help(tip)
+        if let shortcut {
+            button
+                .keyboardShortcut(shortcut)
+                .buttonStyle(.borderless)
+                .help(tip)
+        } else {
+            button
+                .buttonStyle(.borderless)
+                .help(tip)
+        }
     }
 
     /// A small live sparkline whose width is bound to `model.graphWidths[index]`

@@ -326,13 +326,16 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
     // MARK: - Per-selection detail
 
     public func threads(of id: ProcessID) async throws -> [ThreadInfo] {
-        // Per-thread CPU/state requires a task port (task_for_pid), which is
-        // unavailable unprivileged. We return one stub per live thread so the
-        // UI can show an accurate count; full detail is a W2 (privileged
-        // helper) responsibility.
         guard let ti = Libproc.taskInfo(id.pid) else { return [] }
         let n = Int(ti.pti_threadnum)
         guard n > 0 else { return [] }
+
+        let details = Libproc.threads(id.pid, expectedCount: n)
+        if !details.isEmpty { return details }
+
+        // Fall back to one stub per live thread when macOS refuses public
+        // per-thread detail. The privileged helper can still fill richer data
+        // for protected/other-user processes when task ports are available.
         return (0..<n).map { index in
             ThreadInfo(
                 id: UInt64(index),

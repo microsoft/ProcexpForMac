@@ -114,8 +114,8 @@ private struct ViewMenu: View {
     private let speeds: [TimeInterval] = [0.5, 1, 2, 5, 10]
 
     var body: some View {
-        Toggle("Show Process Tree", isOn: $model.showProcessTree)
-            .keyboardShortcut("t", modifiers: .command)
+        Button("Show Process Tree") { model.showProcessTreeView() }
+            .keyboardShortcut("t", modifiers: .option)
         Toggle("Show Lower Pane", isOn: $model.showLowerPane)
             .keyboardShortcut("l", modifiers: .command)
 

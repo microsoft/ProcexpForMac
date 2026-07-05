@@ -93,8 +93,14 @@ final class AppModel {
     var systemInfoTab: SystemInfoTab = .summary
 
     // R1 — show the process hierarchy (tree) vs. a flat list of all processes
-    // (Procexp "View ▸ Show Process Tree", ⌘T).
+    // (Procexp "View ▸ Show Process Tree", ⌥T).
     var showProcessTree: Bool = true
+    var processTreeSortResetToken: Int = 0
+
+    func showProcessTreeView() {
+        showProcessTree = true
+        processTreeSortResetToken += 1
+    }
 
     // R1 — user-adjustable widths (points) of the three toolbar mini history
     // graphs (CPU, Memory, I/O). Each graph has a drag handle on its trailing

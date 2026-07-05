@@ -44,6 +44,9 @@ enum ThreadSampler {
         let basicCount = mach_msg_type_number_t(
             MemoryLayout<thread_basic_info_data_t>.size / MemoryLayout<natural_t>.size
         )
+        let extendedCount = mach_msg_type_number_t(
+            MemoryLayout<thread_extended_info_data_t>.size / MemoryLayout<natural_t>.size
+        )
         let idCount = mach_msg_type_number_t(
             MemoryLayout<thread_identifier_info_data_t>.size / MemoryLayout<natural_t>.size
         )
@@ -65,9 +68,24 @@ enum ThreadSampler {
             }
             guard bkr == KERN_SUCCESS else { continue }
 
-            let cpuPercent = Double(basic.cpu_usage) / usageScale * 100.0
-            let userNanos = time(basic.user_time)
-            let systemNanos = time(basic.system_time)
+            var cpuPercent = Double(basic.cpu_usage) / usageScale * 100.0
+            var cpuTime = time(basic.user_time) &+ time(basic.system_time)
+            var runState = basic.run_state
+            var basePriority: Int32 = 0
+
+            var extended = thread_extended_info_data_t()
+            var eCount = extendedCount
+            let ekr = withUnsafeMutablePointer(to: &extended) { ptr in
+                ptr.withMemoryRebound(to: integer_t.self, capacity: Int(eCount)) {
+                    thread_info(thread, thread_flavor_t(THREAD_EXTENDED_INFO), $0, &eCount)
+                }
+            }
+            if ekr == KERN_SUCCESS {
+                cpuPercent = Double(extended.pth_cpu_usage) / usageScale * 100.0
+                cpuTime = extended.pth_user_time &+ extended.pth_system_time
+                runState = extended.pth_run_state
+                basePriority = extended.pth_priority
+            }
 
             // Stable thread id (TID).
             var idInfo = thread_identifier_info_data_t()
@@ -83,9 +101,9 @@ enum ThreadSampler {
                 ThreadInfoDTO(
                     id: tid,
                     cpuPercent: cpuPercent,
-                    cpuTime: userNanos + systemNanos,
-                    state: stateString(basic.run_state),
-                    basePriority: 0
+                    cpuTime: cpuTime,
+                    state: stateString(runState),
+                    basePriority: basePriority
                 )
             )
         }
@@ -99,11 +117,11 @@ enum ThreadSampler {
 
     private static func stateString(_ runState: integer_t) -> String {
         switch runState {
-        case TH_STATE_RUNNING:         return "running"
-        case TH_STATE_STOPPED:         return "stopped"
-        case TH_STATE_WAITING:         return "waiting"
+        case TH_STATE_RUNNING: return "running"
+        case TH_STATE_STOPPED: return "stopped"
+        case TH_STATE_WAITING: return "waiting"
         case TH_STATE_UNINTERRUPTIBLE: return "uninterruptible"
-        case TH_STATE_HALTED:          return "halted"
+        case TH_STATE_HALTED: return "halted"
         default:                       return "unknown"
         }
     }

@@ -24,6 +24,19 @@ struct ProcexpSamplingTests {
         #expect((me?.threadCount ?? 0) > 0)
     }
 
+    @Test("Reads public thread detail for the current process")
+    func readsThreadDetailForCurrentProcess() async throws {
+        let provider = LibprocDataProvider()
+        let snap = await provider.snapshot()
+        let me = try #require(snap.processes.values.first { $0.id.pid == getpid() })
+
+        let threads = try await provider.threads(of: me.id)
+
+        #expect(!threads.isEmpty)
+        #expect(threads.contains { !$0.state.isEmpty && $0.state != "unknown" })
+        #expect(threads.contains { $0.basePriority > 0 })
+    }
+
     @Test("Advertises accurate-CPU capability")
     func capabilities() {
         #expect(LibprocDataProvider().capabilities.contains(.accurateCPU))

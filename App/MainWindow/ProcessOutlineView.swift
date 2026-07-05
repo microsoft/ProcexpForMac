@@ -32,6 +32,7 @@ struct ProcessOutlineView: NSViewRepresentable {
     let columns: [Column]
     let colorRules: [ProcessColorRule]
     let treeMode: Bool
+    let treeSortResetToken: Int
     let searchText: String
     var onCommand: (ProcessCommand, ProcessID) -> Void
 
@@ -50,13 +51,13 @@ struct ProcessOutlineView: NSViewRepresentable {
         coordinator.installColumns(columns)
         coordinator.installMenus()
         coordinator.installScrollSync()
-        coordinator.update(snapshot: snapshot, columns: columns, colorRules: colorRules, treeMode: treeMode, searchText: searchText)
+        coordinator.update(snapshot: snapshot, columns: columns, colorRules: colorRules, treeMode: treeMode, treeSortResetToken: treeSortResetToken, searchText: searchText)
         return container
     }
 
     func updateNSView(_ nsView: ProcessListContainerView, context: Context) {
         context.coordinator.onCommand = onCommand
-        context.coordinator.update(snapshot: snapshot, columns: columns, colorRules: colorRules, treeMode: treeMode, searchText: searchText)
+        context.coordinator.update(snapshot: snapshot, columns: columns, colorRules: colorRules, treeMode: treeMode, treeSortResetToken: treeSortResetToken, searchText: searchText)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -98,6 +99,7 @@ struct ProcessOutlineView: NSViewRepresentable {
         private var metricColumnWidths: [Column: CGFloat] = [:]
         private var currentRules: [ProcessColorRule] = []
         private var currentTreeMode = true
+        private var currentTreeSortResetToken = 0
         private var currentSearchText = ""
         private var lastRestoredSelection: ProcessID?
         private var sortColumn: Column?
@@ -137,6 +139,7 @@ struct ProcessOutlineView: NSViewRepresentable {
                     columns: [Column],
                     colorRules: [ProcessColorRule],
                     treeMode: Bool,
+                    treeSortResetToken: Int,
                     searchText: String) {
             let shouldAutoExpand = !newSnapshot.processes.isEmpty && (!didInitialExpand || snapshot.processes.isEmpty)
             if columns != currentColumns {
@@ -144,6 +147,11 @@ struct ProcessOutlineView: NSViewRepresentable {
             }
             currentRules = colorRules
             currentTreeMode = treeMode
+            if treeSortResetToken != currentTreeSortResetToken {
+                currentTreeSortResetToken = treeSortResetToken
+                sortColumn = nil
+                sortAscending = true
+            }
             currentSearchText = searchText
             updateProcessHighlights(from: snapshot, to: newSnapshot)
             snapshot = newSnapshot

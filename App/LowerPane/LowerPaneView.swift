@@ -569,7 +569,6 @@ struct LowerPaneView: View {
             && thread.cpuTime == 0
             && missingState
             && missingStart
-            && thread.basePriority == 0
     }
 
     private nonisolated static func hexString(_ value: UInt64?) -> String {

@@ -238,6 +238,61 @@ enum Libproc {
         return result
     }
 
+    // MARK: - Threads
+
+    /// Public per-thread detail for processes macOS allows us to inspect.
+    ///
+    /// `PROC_PIDLISTTHREADS` returns 64-bit thread handles that can be passed
+    /// back to `PROC_PIDTHREADINFO`. Unlike fd listing, a nil buffer does not
+    /// report the required size, so callers provide the current task thread
+    /// count from `PROC_PIDTASKINFO` and we over-allocate slightly for races.
+    static func threads(_ pid: pid_t, expectedCount: Int) -> [ThreadInfo] {
+        let capacity = max(1, expectedCount + 8)
+        var threadIDs = [UInt64](repeating: 0, count: capacity)
+        let listBytes = Int32(threadIDs.count * MemoryLayout<UInt64>.stride)
+        let got = threadIDs.withUnsafeMutableBytes { raw in
+            proc_pidinfo(pid, PROC_PIDLISTTHREADS, 0, raw.baseAddress, listBytes)
+        }
+        guard got > 0 else { return [] }
+
+        let count = min(capacity, Int(got) / MemoryLayout<UInt64>.stride)
+        let infoSize = Int32(MemoryLayout<proc_threadinfo>.size)
+        var result: [ThreadInfo] = []
+        result.reserveCapacity(count)
+
+        for threadID in threadIDs.prefix(count) where threadID != 0 {
+            var info = proc_threadinfo()
+            let rc = withUnsafeMutablePointer(to: &info) {
+                proc_pidinfo(pid, PROC_PIDTHREADINFO, threadID, $0, infoSize)
+            }
+            guard rc == infoSize else { continue }
+
+            result.append(
+                ThreadInfo(
+                    id: threadID,
+                    cpuPercent: Double(info.pth_cpu_usage) / Double(TH_USAGE_SCALE) * 100.0,
+                    cpuTime: info.pth_user_time &+ info.pth_system_time,
+                    state: threadStateString(info.pth_run_state),
+                    startAddress: nil,
+                    startSymbol: nil,
+                    basePriority: info.pth_priority
+                )
+            )
+        }
+        return result
+    }
+
+    static func threadStateString(_ runState: Int32) -> String {
+        switch runState {
+        case TH_STATE_RUNNING:         return "running"
+        case TH_STATE_STOPPED:         return "stopped"
+        case TH_STATE_WAITING:         return "waiting"
+        case TH_STATE_UNINTERRUPTIBLE: return "uninterruptible"
+        case TH_STATE_HALTED:          return "halted"
+        default:                       return "unknown"
+        }
+    }
+
     // MARK: - argv / envp via KERN_PROCARGS2
 
     struct ProcArgs {
