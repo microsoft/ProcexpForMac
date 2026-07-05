@@ -553,7 +553,7 @@ struct LowerPaneView: View {
         }
         let stubCount = threads.filter(Self.hasStubThreadDetail).count
         if stubCount == threads.count {
-            return "Only thread identifiers are available. Per-thread CPU, state, start address, and priority details require the privileged helper."
+            return "Only thread identifiers are available. macOS may require the privileged helper for richer per-thread data."
         }
         if stubCount > 0 {
             return "Some thread details are unavailable for this process; macOS may require the privileged helper for richer per-thread data."
@@ -569,6 +569,8 @@ struct LowerPaneView: View {
             && thread.cpuTime == 0
             && missingState
             && missingStart
+            && thread.currentPriority == 0
+            && thread.basePriority == 0
     }
 
     private nonisolated static func hexString(_ value: UInt64?) -> String {
@@ -974,9 +976,13 @@ private struct FileDescriptorRowsTable: NSViewRepresentable {
         static let columns = [
             ColumnDef(id: "type", title: "Type", width: 100, alignment: .left),
             ColumnDef(id: "name", title: "Name", width: 440, alignment: .left),
+            ColumnDef(id: "access", title: "Access", width: 76, alignment: .left),
+            ColumnDef(id: "offset", title: "Offset", width: 86, alignment: .right),
+            ColumnDef(id: "size", title: "Size", width: 86, alignment: .right),
+            ColumnDef(id: "status", title: "Status", width: 86, alignment: .left),
             ColumnDef(id: "fd", title: "FD", width: 56, alignment: .right),
         ]
-        static let persistenceKey = "lowerPane.handles.columns"
+        static let persistenceKey = "lowerPane.handles.columns.v2"
 
         var rows: [FileDescriptorInfo] = []
         var highlights: [String: TimedListRowHighlight] = [:]
@@ -1106,9 +1112,28 @@ private struct FileDescriptorRowsTable: NSViewRepresentable {
             switch id {
             case "type": return row.kind.rawValue
             case "name": return row.name
+            case "access": return accessText(row.openFlags)
+            case "offset": return row.offset.map(String.init) ?? ""
+            case "size": return row.vnode.map { ByteFormat.bytes(UInt64(max(0, $0.size))) } ?? ""
+            case "status": return flagsHex(row.statusFlags)
             case "fd": return String(row.id)
             default: return ""
             }
+        }
+
+        private func accessText(_ flags: UInt32?) -> String {
+            guard let flags else { return "" }
+            switch Int32(flags) & O_ACCMODE {
+            case O_RDONLY: return "Read"
+            case O_WRONLY: return "Write"
+            case O_RDWR: return "Read/Write"
+            default: return flagsHex(flags)
+            }
+        }
+
+        private func flagsHex(_ flags: UInt32?) -> String {
+            guard let flags, flags != 0 else { return "" }
+            return String(format: "0x%X", flags)
         }
 
         private func alignment(for id: String) -> NSTextAlignment {
@@ -1199,12 +1224,19 @@ private struct ThreadRowsTable: NSViewRepresentable {
 
         static let columns = [
             ColumnDef(id: "tid", title: "TID", width: 92, alignment: .right),
+            ColumnDef(id: "name", title: "Name", width: 150, alignment: .left),
             ColumnDef(id: "cpu", title: "CPU", width: 70, alignment: .right),
             ColumnDef(id: "cpuTime", title: "CPU Time", width: 100, alignment: .right),
             ColumnDef(id: "state", title: "State", width: 110, alignment: .left),
+            ColumnDef(id: "curPriority", title: "Cur Pri", width: 70, alignment: .right),
             ColumnDef(id: "basePriority", title: "Base Pri", width: 76, alignment: .right),
+            ColumnDef(id: "maxPriority", title: "Max Pri", width: 70, alignment: .right),
+            ColumnDef(id: "policy", title: "Policy", width: 94, alignment: .left),
+            ColumnDef(id: "sleep", title: "Sleep", width: 62, alignment: .right),
+            ColumnDef(id: "flags", title: "Flags", width: 74, alignment: .right),
+            ColumnDef(id: "dispatch", title: "Dispatch Q", width: 112, alignment: .right),
         ]
-        static let persistenceKey = "lowerPane.threads.columns"
+        static let persistenceKey = "lowerPane.threads.columns.v2"
 
         var rows: [ThreadInfo] = []
         var selection: Binding<ThreadInfo.ID?>
@@ -1324,11 +1356,28 @@ private struct ThreadRowsTable: NSViewRepresentable {
         private func text(for id: String, row: ThreadInfo) -> String {
             switch id {
             case "tid": return String(row.id)
+            case "name": return row.name
             case "cpu": return String(format: "%.1f%%", row.cpuPercent)
             case "cpuTime": return formatCPUTime(row.cpuTime)
             case "state": return row.state
+            case "curPriority": return row.currentPriority == 0 ? "" : String(row.currentPriority)
             case "basePriority": return row.basePriority == 0 ? "" : String(row.basePriority)
+            case "maxPriority": return row.maxPriority == 0 ? "" : String(row.maxPriority)
+            case "policy": return policyText(row.schedulerPolicy)
+            case "sleep": return row.sleepTimeSeconds > 0 ? "\(row.sleepTimeSeconds)s" : ""
+            case "flags": return row.flags == 0 ? "" : String(format: "0x%X", row.flags)
+            case "dispatch": return hexString(row.dispatchQueueAddress)
             default: return ""
+            }
+        }
+
+        private func policyText(_ policy: Int32) -> String {
+            switch policy {
+            case Int32(POLICY_TIMESHARE): return "Timeshare"
+            case Int32(POLICY_RR): return "Round-robin"
+            case Int32(POLICY_FIFO): return "FIFO"
+            case 0: return ""
+            default: return String(policy)
             }
         }
 
@@ -1337,9 +1386,14 @@ private struct ThreadRowsTable: NSViewRepresentable {
         }
 
         private func searchableText(for row: ThreadInfo) -> String {
-            [String(row.id), row.state, String(row.basePriority)]
+            [String(row.id), row.name, row.state, String(row.currentPriority), String(row.basePriority), String(row.schedulerPolicy)]
                 .filter { !$0.isEmpty }
                 .joined(separator: " ")
+        }
+
+        private func hexString(_ value: UInt64?) -> String {
+            guard let value, value != 0 else { return "" }
+            return "0x" + String(value, radix: 16, uppercase: false)
         }
 
         private func formatCPUTime(_ nanoseconds: UInt64) -> String {

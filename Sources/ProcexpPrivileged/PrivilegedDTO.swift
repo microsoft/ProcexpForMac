@@ -25,15 +25,31 @@ public struct ProcessRecordDTO: Codable, Sendable {
     public var imageType: ImageType
     public var uid: UInt32
     public var userName: String?
+    public var sessionTTY: String?
+    public var bsdFlagsRaw: UInt32?
+    public var bsdStatusRaw: UInt32?
+    public var hasControllingTTY: Bool
+    public var isSessionLeader: Bool
+    public var is64Bit: Bool?
     public var commandLine: String?
     public var cpuPercent: Double
     public var cpuTime: UInt64
     public var threadCount: Int
+    public var runningThreadCount: Int?
+    public var threadUserTime: UInt64?
+    public var threadSystemTime: UInt64?
+    public var taskPolicy: Int32?
     public var contextSwitches: UInt64?
     public var residentSize: UInt64
     public var virtualSize: UInt64
     public var physFootprint: UInt64?
     public var pageFaults: UInt64?
+    public var pageIns: UInt64?
+    public var copyOnWriteFaults: UInt64?
+    public var machMessagesSent: UInt64?
+    public var machMessagesReceived: UInt64?
+    public var machSyscalls: UInt64?
+    public var unixSyscalls: UInt64?
     public var diskBytesRead: UInt64?
     public var diskBytesWritten: UInt64?
     public var fileDescriptorCount: Int?
@@ -51,15 +67,31 @@ public struct ProcessRecordDTO: Codable, Sendable {
         imageType = r.imageType
         uid = r.uid
         userName = r.userName
+        sessionTTY = r.sessionTTY
+        bsdFlagsRaw = r.bsdFlagsRaw
+        bsdStatusRaw = r.bsdStatusRaw
+        hasControllingTTY = r.hasControllingTTY
+        isSessionLeader = r.isSessionLeader
+        is64Bit = r.is64Bit
         commandLine = r.commandLine
         cpuPercent = r.cpuPercent
         cpuTime = r.cpuTime
         threadCount = r.threadCount
+        runningThreadCount = r.runningThreadCount
+        threadUserTime = r.threadUserTime
+        threadSystemTime = r.threadSystemTime
+        taskPolicy = r.taskPolicy
         contextSwitches = r.contextSwitches
         residentSize = r.residentSize
         virtualSize = r.virtualSize
         physFootprint = r.physFootprint
         pageFaults = r.pageFaults
+        pageIns = r.pageIns
+        copyOnWriteFaults = r.copyOnWriteFaults
+        machMessagesSent = r.machMessagesSent
+        machMessagesReceived = r.machMessagesReceived
+        machSyscalls = r.machSyscalls
+        unixSyscalls = r.unixSyscalls
         diskBytesRead = r.diskBytesRead
         diskBytesWritten = r.diskBytesWritten
         fileDescriptorCount = r.fileDescriptorCount
@@ -79,15 +111,31 @@ public struct ProcessRecordDTO: Codable, Sendable {
             imageType: imageType,
             uid: uid,
             userName: userName,
+            sessionTTY: sessionTTY,
+            bsdFlagsRaw: bsdFlagsRaw,
+            bsdStatusRaw: bsdStatusRaw,
+            hasControllingTTY: hasControllingTTY,
+            isSessionLeader: isSessionLeader,
+            is64Bit: is64Bit,
             commandLine: commandLine,
             cpuPercent: cpuPercent,
             cpuTime: cpuTime,
             threadCount: threadCount,
+            runningThreadCount: runningThreadCount,
+            threadUserTime: threadUserTime,
+            threadSystemTime: threadSystemTime,
+            taskPolicy: taskPolicy,
             contextSwitches: contextSwitches,
             residentSize: residentSize,
             virtualSize: virtualSize,
             physFootprint: physFootprint,
             pageFaults: pageFaults,
+            pageIns: pageIns,
+            copyOnWriteFaults: copyOnWriteFaults,
+            machMessagesSent: machMessagesSent,
+            machMessagesReceived: machMessagesReceived,
+            machSyscalls: machSyscalls,
+            unixSyscalls: unixSyscalls,
             diskBytesRead: diskBytesRead,
             diskBytesWritten: diskBytesWritten,
             fileDescriptorCount: fileDescriptorCount,
@@ -188,45 +236,77 @@ public struct ProcessSnapshotDTO: Codable, Sendable {
 
 public struct ThreadInfoDTO: Codable, Sendable {
     public var id: UInt64
+    public var name: String
     public var cpuPercent: Double
     public var cpuTime: UInt64
     public var state: String
     public var startAddress: UInt64?
     public var startSymbol: String?
+    public var currentPriority: Int32
     public var basePriority: Int32
+    public var maxPriority: Int32
+    public var schedulerPolicy: Int32
+    public var sleepTimeSeconds: Int32
+    public var flags: Int32
+    public var dispatchQueueAddress: UInt64?
 
     public init(_ t: ThreadInfo) {
         id = t.id
+        name = t.name
         cpuPercent = t.cpuPercent
         cpuTime = t.cpuTime
         state = t.state
         startAddress = t.startAddress
         startSymbol = t.startSymbol
+        currentPriority = t.currentPriority
         basePriority = t.basePriority
+        maxPriority = t.maxPriority
+        schedulerPolicy = t.schedulerPolicy
+        sleepTimeSeconds = t.sleepTimeSeconds
+        flags = t.flags
+        dispatchQueueAddress = t.dispatchQueueAddress
     }
 
     public init(
-        id: UInt64, cpuPercent: Double, cpuTime: UInt64, state: String,
-        startAddress: UInt64? = nil, startSymbol: String? = nil, basePriority: Int32
+        id: UInt64, name: String = "", cpuPercent: Double, cpuTime: UInt64, state: String,
+        startAddress: UInt64? = nil, startSymbol: String? = nil,
+        currentPriority: Int32 = 0, basePriority: Int32,
+        maxPriority: Int32 = 0, schedulerPolicy: Int32 = 0,
+        sleepTimeSeconds: Int32 = 0, flags: Int32 = 0,
+        dispatchQueueAddress: UInt64? = nil
     ) {
         self.id = id
+        self.name = name
         self.cpuPercent = cpuPercent
         self.cpuTime = cpuTime
         self.state = state
         self.startAddress = startAddress
         self.startSymbol = startSymbol
+        self.currentPriority = currentPriority
         self.basePriority = basePriority
+        self.maxPriority = maxPriority
+        self.schedulerPolicy = schedulerPolicy
+        self.sleepTimeSeconds = sleepTimeSeconds
+        self.flags = flags
+        self.dispatchQueueAddress = dispatchQueueAddress
     }
 
     public var model: ThreadInfo {
         ThreadInfo(
             id: id,
+            name: name,
             cpuPercent: cpuPercent,
             cpuTime: cpuTime,
             state: state,
             startAddress: startAddress,
             startSymbol: startSymbol,
-            basePriority: basePriority
+            currentPriority: currentPriority,
+            basePriority: basePriority,
+            maxPriority: maxPriority,
+            schedulerPolicy: schedulerPolicy,
+            sleepTimeSeconds: sleepTimeSeconds,
+            flags: flags,
+            dispatchQueueAddress: dispatchQueueAddress
         )
     }
 }
@@ -265,14 +345,39 @@ public struct FileDescriptorInfoDTO: Codable, Sendable {
     public var id: Int32
     public var kind: FDKind
     public var name: String
+    public var openFlags: UInt32?
+    public var statusFlags: UInt32?
+    public var offset: Int64?
+    public var fileInfoType: Int32?
+    public var guardFlags: UInt32?
+    public var vnode: VnodeDescriptorInfo?
+    public var socket: SocketInfo?
 
     public init(_ f: FileDescriptorInfo) {
         id = f.id
         kind = f.kind
         name = f.name
+        openFlags = f.openFlags
+        statusFlags = f.statusFlags
+        offset = f.offset
+        fileInfoType = f.fileInfoType
+        guardFlags = f.guardFlags
+        vnode = f.vnode
+        socket = f.socket
     }
 
     public var model: FileDescriptorInfo {
-        FileDescriptorInfo(id: id, kind: kind, name: name)
+        FileDescriptorInfo(
+            id: id,
+            kind: kind,
+            name: name,
+            openFlags: openFlags,
+            statusFlags: statusFlags,
+            offset: offset,
+            fileInfoType: fileInfoType,
+            guardFlags: guardFlags,
+            vnode: vnode,
+            socket: socket
+        )
     }
 }

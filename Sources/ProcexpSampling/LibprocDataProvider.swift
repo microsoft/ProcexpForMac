@@ -169,23 +169,11 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
         if name.isEmpty { name = "pid \(pid)" }
 
         // Task info: CPU / threads / memory / faults (may be absent w/o access).
-        var cpuTime: UInt64 = 0
-        var threadCount = 0
-        var residentSize: UInt64 = 0
-        var virtualSize: UInt64 = 0
-        var pageFaults: UInt64? = nil
-        var contextSwitches: UInt64? = nil
-        var priority: Int32 = 0
+        var task = Libproc.TaskInfoDetails()
         var hasTaskInfo = false
         if let ti = Libproc.taskInfo(pid) {
             hasTaskInfo = true
-            cpuTime = ti.pti_total_user &+ ti.pti_total_system
-            threadCount = Int(ti.pti_threadnum)
-            residentSize = ti.pti_resident_size
-            virtualSize = ti.pti_virtual_size
-            pageFaults = UInt64(UInt32(bitPattern: ti.pti_faults))
-            contextSwitches = UInt64(UInt32(bitPattern: ti.pti_csw))
-            priority = ti.pti_priority
+            task = Libproc.taskDetails(ti)
         }
 
         // Descriptor count (handle-equivalent).
@@ -205,6 +193,9 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
         if uid == myUID { flags.insert(.ownProcess) }
         if ppid == 1 && uid == 0 { flags.insert(.service) }
         if !hasTaskInfo { flags.insert(.limitedTaskInfo) }
+        let bsdFlags = bsd.pbi_flags
+        let hasTTY = (bsdFlags & UInt32(PROC_FLAG_CONTROLT)) != 0
+        let sessionTTY = Libproc.sessionTTY(device: bsd.e_tdev, hasControllingTTY: hasTTY)
 
         // Static bundle metadata (version / description / company). Cached by
         // executable path so repeat samples don't re-read Info.plist.
@@ -220,22 +211,38 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
             imageType: imageType(path: path, ppid: ppid, uid: uid),
             uid: uid,
             userName: Libproc.userName(for: uid),
+            sessionTTY: sessionTTY,
+            bsdFlagsRaw: bsdFlags,
+            bsdStatusRaw: bsd.pbi_status,
+            hasControllingTTY: hasTTY,
+            isSessionLeader: (bsdFlags & UInt32(PROC_FLAG_SLEADER)) != 0,
+            is64Bit: (bsdFlags & UInt32(PROC_FLAG_LP64)) != 0,
             displayDescription: meta?.displayDescription,
             companyName: meta?.companyName,
             version: meta?.version,
             cpuPercent: 0,                  // filled after delta computation
-            cpuTime: cpuTime,
-            threadCount: threadCount,
-            contextSwitches: contextSwitches,
-            residentSize: residentSize,
-            virtualSize: virtualSize,
+            cpuTime: task.cpuTime,
+            threadCount: task.threadCount,
+            runningThreadCount: task.runningThreadCount,
+            threadUserTime: task.threadUserTime,
+            threadSystemTime: task.threadSystemTime,
+            taskPolicy: task.taskPolicy,
+            contextSwitches: task.contextSwitches,
+            residentSize: task.residentSize,
+            virtualSize: task.virtualSize,
             physFootprint: physFootprint,
-            pageFaults: pageFaults,
+            pageFaults: task.pageFaults,
+            pageIns: task.pageIns,
+            copyOnWriteFaults: task.copyOnWriteFaults,
+            machMessagesSent: task.machMessagesSent,
+            machMessagesReceived: task.machMessagesReceived,
+            machSyscalls: task.machSyscalls,
+            unixSyscalls: task.unixSyscalls,
             diskBytesRead: diskRead,
             diskBytesWritten: diskWritten,
             fileDescriptorCount: fdCount,
             nice: bsd.pbi_nice,
-            priority: priority,
+            priority: task.priority,
             flags: flags,
             startTimeDate: startDate
         )
@@ -258,29 +265,19 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
         if name.isEmpty, let path { name = (path as NSString).lastPathComponent }
         if name.isEmpty { name = "pid \(pid)" }
 
-        var cpuTime: UInt64 = 0
-        var threadCount = 0
-        var residentSize: UInt64 = 0
-        var virtualSize: UInt64 = 0
-        var pageFaults: UInt64? = nil
-        var contextSwitches: UInt64? = nil
-        var priority: Int32 = 0
+        var task = Libproc.TaskInfoDetails()
         var hasTaskInfo = false
         if let ti = Libproc.taskInfo(pid) {
             hasTaskInfo = true
-            cpuTime = ti.pti_total_user &+ ti.pti_total_system
-            threadCount = Int(ti.pti_threadnum)
-            residentSize = ti.pti_resident_size
-            virtualSize = ti.pti_virtual_size
-            pageFaults = UInt64(UInt32(bitPattern: ti.pti_faults))
-            contextSwitches = UInt64(UInt32(bitPattern: ti.pti_csw))
-            priority = ti.pti_priority
+            task = Libproc.taskDetails(ti)
         }
 
         var flags: ProcessFlags = []
         if uid == myUID { flags.insert(.ownProcess) }
         if ppid == 1 && uid == 0 { flags.insert(.service) }
         if !hasTaskInfo { flags.insert(.limitedTaskInfo) }
+        let bsdFlags = sbsd.pbsi_flags
+        let hasTTY = (bsdFlags & UInt32(PROC_FLAG_CONTROLT)) != 0
 
         let meta = path.map { BundleMetadataCache.shared.metadata(forExecutablePath: $0) }
 
@@ -294,19 +291,34 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
             imageType: imageType(path: path, ppid: ppid, uid: uid),
             uid: uid,
             userName: Libproc.userName(for: uid),
+            bsdFlagsRaw: bsdFlags,
+            bsdStatusRaw: sbsd.pbsi_status,
+            hasControllingTTY: hasTTY,
+            isSessionLeader: (bsdFlags & UInt32(PROC_FLAG_SLEADER)) != 0,
+            is64Bit: (bsdFlags & UInt32(PROC_FLAG_LP64)) != 0,
             displayDescription: meta?.displayDescription,
             companyName: meta?.companyName,
             version: meta?.version,
             cpuPercent: 0,
-            cpuTime: cpuTime,
-            threadCount: threadCount,
-            contextSwitches: contextSwitches,
-            residentSize: residentSize,
-            virtualSize: virtualSize,
-            pageFaults: pageFaults,
+            cpuTime: task.cpuTime,
+            threadCount: task.threadCount,
+            runningThreadCount: task.runningThreadCount,
+            threadUserTime: task.threadUserTime,
+            threadSystemTime: task.threadSystemTime,
+            taskPolicy: task.taskPolicy,
+            contextSwitches: task.contextSwitches,
+            residentSize: task.residentSize,
+            virtualSize: task.virtualSize,
+            pageFaults: task.pageFaults,
+            pageIns: task.pageIns,
+            copyOnWriteFaults: task.copyOnWriteFaults,
+            machMessagesSent: task.machMessagesSent,
+            machMessagesReceived: task.machMessagesReceived,
+            machSyscalls: task.machSyscalls,
+            unixSyscalls: task.unixSyscalls,
             fileDescriptorCount: Libproc.fdCount(pid),
             nice: 0,
-            priority: priority,
+            priority: task.priority,
             flags: flags,
             startTimeDate: .distantPast
         )

@@ -217,6 +217,11 @@ final class AppModel {
     private let maxConcurrentCommandLineLookups = 16
     private let maxNewCommandLineLookupsPerRefresh = 32
 
+    private var autostartCache: [String: String] = [:]
+    private var autostartInFlight: Set<String> = []
+    private let maxConcurrentAutostartLookups = 8
+    private let maxNewAutostartLookupsPerRefresh = 32
+
     init() {
         let libproc = LibprocDataProvider()
         self.libproc = libproc
@@ -520,7 +525,7 @@ final class AppModel {
         let system = self.system
         streamTask = Task { @MainActor in
             for await snap in provider.snapshots(interval: interval) {
-                let enriched = self.enrichWithSignatures(self.enrichWithCommandLines(snap))
+                let enriched = self.enrichWithSignatures(self.enrichWithAutostart(self.enrichWithCommandLines(snap)))
                 self.snapshot = enriched
                 let stats = await system.stats()
                 self.systemHistoryTimestamps.append(Date())
@@ -582,7 +587,7 @@ final class AppModel {
     func forceRefresh() async {
         let provider: any ProcessDataProviding = data
         let snap = await provider.snapshot()
-        self.snapshot = self.enrichWithSignatures(self.enrichWithCommandLines(snap))
+        self.snapshot = self.enrichWithSignatures(self.enrichWithAutostart(self.enrichWithCommandLines(snap)))
         let stats = await system.stats()
         systemHistoryTimestamps.append(Date())
         cpuHistory.append(stats.cpuTotalPercent)
@@ -865,6 +870,43 @@ final class AppModel {
                 let value = (try? await data.commandLine(of: id)) ?? ""
                 self.commandLineCache[id] = value
                 self.commandLineInFlight.remove(id)
+            }
+        }
+
+        return ProcessSnapshot(
+            timestamp: snapshot.timestamp,
+            interval: snapshot.interval,
+            processes: processes,
+            roots: snapshot.roots,
+            children: snapshot.children,
+            system: snapshot.system
+        )
+    }
+
+    private func enrichWithAutostart(_ snapshot: ProcessSnapshot) -> ProcessSnapshot {
+        guard columns.contains(.autostart) else { return snapshot }
+        var processes = snapshot.processes
+        var startedThisRefresh = 0
+
+        for (id, record) in snapshot.processes {
+            guard let path = record.executablePath, !path.isEmpty else { continue }
+            if let cached = autostartCache[path] {
+                if !cached.isEmpty { processes[id]?.autostartLocation = cached }
+                continue
+            }
+
+            guard !autostartInFlight.contains(path),
+                  autostartInFlight.count < maxConcurrentAutostartLookups,
+                  startedThisRefresh < maxNewAutostartLookupsPerRefresh
+            else { continue }
+
+            autostartInFlight.insert(path)
+            startedThisRefresh += 1
+            let autostart = self.autostart
+            Task { @MainActor in
+                let value = await autostart.autostartLocation(for: record) ?? ""
+                self.autostartCache[path] = value
+                self.autostartInFlight.remove(path)
             }
         }
 

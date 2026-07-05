@@ -81,6 +81,50 @@ struct ProcexpModelTests {
         #expect(Column.cpu.sortValue(for: p) == .number(12.5))
     }
 
+    @Test("Extended taskinfo columns format and sort")
+    func extendedTaskInfoColumns() {
+        let id = ProcessID(pid: 4321, startTime: 0)
+        let p = ProcessRecord(
+            id: id,
+            name: "tool",
+            bsdFlagsRaw: 0x40,
+            runningThreadCount: 3,
+            threadUserTime: 2_000_000_000,
+            threadSystemTime: 1_000_000_000,
+            taskPolicy: 2,
+            pageIns: 7,
+            copyOnWriteFaults: 11,
+            machMessagesSent: 13,
+            machMessagesReceived: 17,
+            machSyscalls: 19,
+            unixSyscalls: 23
+        )
+
+        #expect(Column.runningThreads.string(for: p) == "3")
+        #expect(Column.threadUserTime.string(for: p) == "0:00:02.00")
+        #expect(Column.threadSystemTime.string(for: p) == "0:00:01.00")
+        #expect(Column.pageIns.sortValue(for: p) == .number(7))
+        #expect(Column.cowFaults.sortValue(for: p) == .number(11))
+        #expect(Column.machSyscalls.string(for: p) == "19")
+        #expect(Column.unixSyscalls.string(for: p) == "23")
+        #expect(Column.bsdFlags.string(for: p) == "0x00000040")
+    }
+
+    @Test("Extended taskinfo columns are blank when task info is limited")
+    func extendedTaskInfoColumnsLimited() {
+        let p = ProcessRecord(
+            id: ProcessID(pid: 99, startTime: 0),
+            name: "limited",
+            runningThreadCount: 3,
+            flags: [.limitedTaskInfo]
+        )
+
+        #expect(Column.runningThreads.string(for: p) == "")
+        #expect(Column.runningThreads.sortValue(for: p) == .none)
+        #expect(Column.pageIns.string(for: p) == "")
+        #expect(Column.machSyscalls.sortValue(for: p) == .none)
+    }
+
     @Test("Unsupported macOS columns are excluded from selectable columns")
     func unsupportedColumnsExcluded() {
         let unsupported: Set<Column> = [.network, .gpu, .gpuMemory, .integrity]

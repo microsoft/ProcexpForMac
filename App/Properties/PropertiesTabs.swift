@@ -364,6 +364,10 @@ struct PerformanceTab: View {
                 InfoRow(label: "Priority", value: String(record.priority))
                 InfoRow(label: "Nice", value: String(record.nice))
                 InfoRow(label: "CPU Time", value: ByteFormat.duration(nanos: record.cpuTime))
+                InfoRow(label: "Thread User Time", value: record.threadUserTime.map(ByteFormat.duration) ?? "—")
+                InfoRow(label: "Thread Kernel Time", value: record.threadSystemTime.map(ByteFormat.duration) ?? "—")
+                InfoRow(label: "Running Threads", value: record.runningThreadCount.map(String.init) ?? "—")
+                InfoRow(label: "Task Policy", value: record.taskPolicy.map(String.init) ?? "—")
                 InfoRow(label: "Context Switches", value: record.contextSwitches.map(String.init) ?? "—")
             }
         }
@@ -376,6 +380,8 @@ struct PerformanceTab: View {
                 InfoRow(label: "Virtual Size", value: bytes(record.virtualSize))
                 InfoRow(label: "Page Faults", value: record.pageFaults.map(String.init) ?? "—")
                 InfoRow(label: "Page Fault Delta", value: String(detail.pageFaultDelta))
+                InfoRow(label: "Page Ins", value: record.pageIns.map(String.init) ?? "—")
+                InfoRow(label: "COW Faults", value: record.copyOnWriteFaults.map(String.init) ?? "—")
             }
         }
     }
@@ -393,6 +399,10 @@ struct PerformanceTab: View {
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 12, verticalSpacing: 5) {
                 InfoRow(label: "Reads", value: bytesOrDash(record.diskBytesRead))
                 InfoRow(label: "Writes", value: bytesOrDash(record.diskBytesWritten))
+                InfoRow(label: "Mach Msg Sent", value: record.machMessagesSent.map(String.init) ?? "—")
+                InfoRow(label: "Mach Msg Received", value: record.machMessagesReceived.map(String.init) ?? "—")
+                InfoRow(label: "Mach Syscalls", value: record.machSyscalls.map(String.init) ?? "—")
+                InfoRow(label: "Unix Syscalls", value: record.unixSyscalls.map(String.init) ?? "—")
             }
         }
     }

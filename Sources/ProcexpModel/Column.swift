@@ -29,6 +29,9 @@ public enum Column: String, CaseIterable, Sendable, Codable {
     case name, pid, ppid, cpu, cpuTime, privateBytes, workingSet, virtualSize,
          threads, handles, description, company, version, path, commandLine,
          user, session, startTime, priority, nice, ioRead, ioWrite,
+         runningThreads, pageIns, cowFaults, machMessagesSent,
+         machMessagesReceived, machSyscalls, unixSyscalls, threadUserTime,
+         threadSystemTime, taskPolicy, bsdFlags,
          network, gpu, gpuMemory, integrity, signature, virusTotal, autostart
 
     public var title: String {
@@ -55,6 +58,17 @@ public enum Column: String, CaseIterable, Sendable, Codable {
         case .nice:         return "Nice"
         case .ioRead:       return "I/O Read Bytes"
         case .ioWrite:      return "I/O Write Bytes"
+        case .runningThreads: return "Running Threads"
+        case .pageIns:      return "Page Ins"
+        case .cowFaults:    return "COW Faults"
+        case .machMessagesSent: return "Mach Msg Sent"
+        case .machMessagesReceived: return "Mach Msg Received"
+        case .machSyscalls: return "Mach Syscalls"
+        case .unixSyscalls: return "Unix Syscalls"
+        case .threadUserTime: return "Thread User Time"
+        case .threadSystemTime: return "Thread Kernel Time"
+        case .taskPolicy:   return "Task Policy"
+        case .bsdFlags:     return "BSD Flags"
         case .network:      return "Network"
         case .gpu:          return "GPU"
         case .gpuMemory:    return "GPU Memory"
@@ -85,6 +99,13 @@ public enum Column: String, CaseIterable, Sendable, Codable {
         case .priority:     return 70
         case .nice:         return 48
         case .ioRead, .ioWrite: return 110
+        case .runningThreads: return 108
+        case .pageIns, .cowFaults: return 90
+        case .machMessagesSent, .machMessagesReceived: return 120
+        case .machSyscalls, .unixSyscalls: return 110
+        case .threadUserTime, .threadSystemTime: return 122
+        case .taskPolicy:   return 82
+        case .bsdFlags:     return 92
         case .network:      return 96
         case .gpu:          return 58
         case .gpuMemory:    return 96
@@ -148,6 +169,17 @@ public enum Column: String, CaseIterable, Sendable, Codable {
         case .nice:         return String(p.nice)
         case .ioRead:       return p.diskBytesRead.map(ByteFormat.bytes) ?? ""
         case .ioWrite:      return p.diskBytesWritten.map(ByteFormat.bytes) ?? ""
+        case .runningThreads: return p.hasTaskInfo ? p.runningThreadCount.map(String.init) ?? "" : ""
+        case .pageIns:      return p.hasTaskInfo ? p.pageIns.map(String.init) ?? "" : ""
+        case .cowFaults:    return p.hasTaskInfo ? p.copyOnWriteFaults.map(String.init) ?? "" : ""
+        case .machMessagesSent: return p.hasTaskInfo ? p.machMessagesSent.map(String.init) ?? "" : ""
+        case .machMessagesReceived: return p.hasTaskInfo ? p.machMessagesReceived.map(String.init) ?? "" : ""
+        case .machSyscalls: return p.hasTaskInfo ? p.machSyscalls.map(String.init) ?? "" : ""
+        case .unixSyscalls: return p.hasTaskInfo ? p.unixSyscalls.map(String.init) ?? "" : ""
+        case .threadUserTime: return p.hasTaskInfo ? p.threadUserTime.map(ByteFormat.duration) ?? "" : ""
+        case .threadSystemTime: return p.hasTaskInfo ? p.threadSystemTime.map(ByteFormat.duration) ?? "" : ""
+        case .taskPolicy:   return p.hasTaskInfo ? p.taskPolicy.map(String.init) ?? "" : ""
+        case .bsdFlags:     return p.bsdFlagsRaw.map { String(format: "0x%08X", $0) } ?? ""
         case .network:      return p.networkBytesPerSec.map { ByteFormat.bytes($0) + "/s" } ?? ""
         case .gpu:          return p.gpuPercent.map { String(format: "%.1f", $0) } ?? ""
         case .gpuMemory:    return ""
@@ -185,6 +217,17 @@ public enum Column: String, CaseIterable, Sendable, Codable {
         case .nice:         return .number(Double(p.nice))
         case .ioRead:       return .number(Double(p.diskBytesRead ?? 0))
         case .ioWrite:      return .number(Double(p.diskBytesWritten ?? 0))
+        case .runningThreads: return p.hasTaskInfo ? p.runningThreadCount.map { .number(Double($0)) } ?? .none : .none
+        case .pageIns:      return p.hasTaskInfo ? p.pageIns.map { .number(Double($0)) } ?? .none : .none
+        case .cowFaults:    return p.hasTaskInfo ? p.copyOnWriteFaults.map { .number(Double($0)) } ?? .none : .none
+        case .machMessagesSent: return p.hasTaskInfo ? p.machMessagesSent.map { .number(Double($0)) } ?? .none : .none
+        case .machMessagesReceived: return p.hasTaskInfo ? p.machMessagesReceived.map { .number(Double($0)) } ?? .none : .none
+        case .machSyscalls: return p.hasTaskInfo ? p.machSyscalls.map { .number(Double($0)) } ?? .none : .none
+        case .unixSyscalls: return p.hasTaskInfo ? p.unixSyscalls.map { .number(Double($0)) } ?? .none : .none
+        case .threadUserTime: return p.hasTaskInfo ? p.threadUserTime.map { .number(Double($0)) } ?? .none : .none
+        case .threadSystemTime: return p.hasTaskInfo ? p.threadSystemTime.map { .number(Double($0)) } ?? .none : .none
+        case .taskPolicy:   return p.hasTaskInfo ? p.taskPolicy.map { .number(Double($0)) } ?? .none : .none
+        case .bsdFlags:     return p.bsdFlagsRaw.map { .number(Double($0)) } ?? .none
         case .network:      return .number(Double(p.networkBytesPerSec ?? 0))
         case .gpu:          return .number(p.gpuPercent ?? 0)
         case .gpuMemory:    return .none

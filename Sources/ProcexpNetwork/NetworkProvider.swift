@@ -74,38 +74,77 @@ public final class NetworkProvider: NetworkProviding {
         guard got >= Int32(MemoryLayout<socket_info>.size) else { return nil }
 
         let psi = sock.psi
+        return Self.makeSocketInfo(fd: fd, psi: psi)
+    }
 
+    private static func makeSocketInfo(fd: Int32, psi: socket_info) -> SocketInfo? {
         switch Int(psi.soi_kind) {
         case Int(SOCKINFO_TCP):
             let tcp = psi.soi_proto.pri_tcp
-            let ini = tcp.tcpsi_ini
-            guard let (proto, laddr, lport, faddr, fport) = decode(ini, tcp: true) else { return nil }
-            return SocketInfo(
-                id: fd,
-                proto: proto,
-                localAddress: laddr,
-                localPort: lport,
-                remoteAddress: faddr,
-                remotePort: fport,
-                state: tcpStateString(tcp.tcpsi_state)
-            )
-
+            guard let (proto, laddr, lport, faddr, fport) = decode(tcp.tcpsi_ini, tcp: true) else { return nil }
+            return baseSocket(fd: fd, psi: psi, proto: proto, localAddress: laddr, localPort: lport, remoteAddress: faddr, remotePort: fport, state: tcpStateString(tcp.tcpsi_state), tcp: tcp)
         case Int(SOCKINFO_IN):
-            let ini = psi.soi_proto.pri_in
-            guard let (proto, laddr, lport, faddr, fport) = decode(ini, tcp: false) else { return nil }
-            return SocketInfo(
-                id: fd,
-                proto: proto,
-                localAddress: laddr,
-                localPort: lport,
-                remoteAddress: faddr,
-                remotePort: fport,
-                state: ""            // UDP / raw IN sockets are stateless.
-            )
-
+            guard let (proto, laddr, lport, faddr, fport) = decode(psi.soi_proto.pri_in, tcp: false) else { return nil }
+            return baseSocket(fd: fd, psi: psi, proto: proto, localAddress: laddr, localPort: lport, remoteAddress: faddr, remotePort: fport, state: "")
         default:
-            // UNIX-domain, ndrv, kernel-event, kernel-ctl, generic: not network.
             return nil
+        }
+    }
+
+    private static func baseSocket(
+        fd: Int32,
+        psi: socket_info,
+        proto: SocketProto,
+        localAddress: String,
+        localPort: UInt16,
+        remoteAddress: String,
+        remotePort: UInt16,
+        state: String,
+        tcp: tcp_sockinfo? = nil
+    ) -> SocketInfo {
+        SocketInfo(
+            id: fd,
+            proto: proto,
+            localAddress: localAddress,
+            localPort: localPort,
+            remoteAddress: remoteAddress,
+            remotePort: remotePort,
+            state: state,
+            addressFamily: Int32(psi.soi_family),
+            socketType: Int32(psi.soi_type),
+            protocolNumber: Int32(psi.soi_protocol),
+            socketKind: Int32(psi.soi_kind),
+            socketOptions: UInt16(bitPattern: psi.soi_options),
+            socketStateFlags: UInt16(bitPattern: psi.soi_state),
+            linger: psi.soi_linger,
+            socketTimeout: psi.soi_timeo,
+            socketError: psi.soi_error,
+            outOfBandMark: psi.soi_oobmark,
+            queueLength: psi.soi_qlen,
+            incompleteQueueLength: psi.soi_incqlen,
+            queueLimit: psi.soi_qlimit,
+            receiveBuffer: buffer(psi.soi_rcv),
+            sendBuffer: buffer(psi.soi_snd),
+            tcpStateRaw: tcp.map { Int32($0.tcpsi_state) },
+            tcpMaximumSegmentSize: tcp.map { Int32($0.tcpsi_mss) },
+            tcpFlags: tcp?.tcpsi_flags,
+            tcpTimers: tcp.map { timers($0.tcpsi_timer) }
+        )
+    }
+
+    private static func buffer(_ info: sockbuf_info) -> SocketBufferInfo {
+        SocketBufferInfo(currentBytes: info.sbi_cc, highWaterMark: info.sbi_hiwat, mbufBytes: info.sbi_mbcnt, mbufLimit: info.sbi_mbmax, lowWaterMark: info.sbi_lowat, flags: info.sbi_flags, timeout: info.sbi_timeo)
+    }
+
+    private static func timers<T>(_ timers: T) -> TCPTimerInfo {
+        withUnsafeBytes(of: timers) { raw in
+            let values = raw.bindMemory(to: Int32.self)
+            return TCPTimerInfo(
+                retransmit: values.indices.contains(0) ? values[0] : 0,
+                persist: values.indices.contains(1) ? values[1] : 0,
+                keepAlive: values.indices.contains(2) ? values[2] : 0,
+                twoMSL: values.indices.contains(3) ? values[3] : 0
+            )
         }
     }
 

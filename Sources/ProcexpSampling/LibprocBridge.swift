@@ -15,6 +15,26 @@ import ProcexpModel
 /// Namespace for the raw kernel-facing helpers.
 enum Libproc {
 
+    struct TaskInfoDetails {
+        var cpuTime: UInt64 = 0
+        var threadCount: Int = 0
+        var runningThreadCount: Int? = nil
+        var threadUserTime: UInt64? = nil
+        var threadSystemTime: UInt64? = nil
+        var taskPolicy: Int32? = nil
+        var residentSize: UInt64 = 0
+        var virtualSize: UInt64 = 0
+        var pageFaults: UInt64? = nil
+        var pageIns: UInt64? = nil
+        var copyOnWriteFaults: UInt64? = nil
+        var machMessagesSent: UInt64? = nil
+        var machMessagesReceived: UInt64? = nil
+        var machSyscalls: UInt64? = nil
+        var unixSyscalls: UInt64? = nil
+        var contextSwitches: UInt64? = nil
+        var priority: Int32 = 0
+    }
+
     // MARK: - Small utilities
 
     /// Convert a fixed-size C `char[]` (imported into Swift as a tuple of
@@ -25,6 +45,11 @@ enum Libproc {
             let bytes = raw.prefix { $0 != 0 }
             return String(decoding: bytes, as: UTF8.self)
         }
+    }
+
+    @inline(__always)
+    static func unsignedCounter(_ value: Int32) -> UInt64 {
+        UInt64(UInt32(bitPattern: value))
     }
 
     /// Monotonic wall-clock nanoseconds, comparable to CPU-time nanoseconds.
@@ -83,6 +108,34 @@ enum Libproc {
             proc_pidinfo(pid, PROC_PIDTASKINFO, 0, $0, size)
         }
         return rc == size ? info : nil
+    }
+
+    static func taskDetails(_ info: proc_taskinfo) -> TaskInfoDetails {
+        TaskInfoDetails(
+            cpuTime: info.pti_total_user &+ info.pti_total_system,
+            threadCount: Int(info.pti_threadnum),
+            runningThreadCount: Int(info.pti_numrunning),
+            threadUserTime: info.pti_threads_user,
+            threadSystemTime: info.pti_threads_system,
+            taskPolicy: info.pti_policy,
+            residentSize: info.pti_resident_size,
+            virtualSize: info.pti_virtual_size,
+            pageFaults: unsignedCounter(info.pti_faults),
+            pageIns: unsignedCounter(info.pti_pageins),
+            copyOnWriteFaults: unsignedCounter(info.pti_cow_faults),
+            machMessagesSent: unsignedCounter(info.pti_messages_sent),
+            machMessagesReceived: unsignedCounter(info.pti_messages_received),
+            machSyscalls: unsignedCounter(info.pti_syscalls_mach),
+            unixSyscalls: unsignedCounter(info.pti_syscalls_unix),
+            contextSwitches: unsignedCounter(info.pti_csw),
+            priority: info.pti_priority
+        )
+    }
+
+    static func sessionTTY(device: UInt32, hasControllingTTY: Bool) -> String? {
+        guard hasControllingTTY, device != UInt32(bitPattern: Int32(-1)) else { return nil }
+        guard let name = devname(dev_t(device), S_IFCHR) else { return nil }
+        return String(cString: name)
     }
 
     // MARK: - rusage (disk I/O + phys footprint), own processes only
@@ -152,12 +205,16 @@ enum Libproc {
             let type = Int32(bitPattern: fd.proc_fdtype)
             let kind: FDKind
             var name = ""
+            var details: FileDescriptorInfo?
             switch type {
             case PROX_FDTYPE_VNODE:
                 kind = .vnode
-                name = vnodePath(pid: pid, fd: fd.proc_fd)
+                details = vnodeDescriptor(pid: pid, fd: fd.proc_fd)
+                name = details?.name ?? ""
             case PROX_FDTYPE_SOCKET:
                 kind = .socket
+                details = socketDescriptor(pid: pid, fd: fd.proc_fd)
+                name = details?.name ?? ""
             case PROX_FDTYPE_KQUEUE:
                 kind = .kqueue
             case PROX_FDTYPE_PIPE:
@@ -167,19 +224,238 @@ enum Libproc {
             default:
                 kind = .other
             }
-            result.append(FileDescriptorInfo(id: fd.proc_fd, kind: kind, name: name))
+            result.append(details ?? FileDescriptorInfo(id: fd.proc_fd, kind: kind, name: name))
         }
         return result
     }
 
-    private static func vnodePath(pid: pid_t, fd: Int32) -> String {
+    private static func vnodeDescriptor(pid: pid_t, fd: Int32) -> FileDescriptorInfo? {
         var info = vnode_fdinfowithpath()
         let size = Int32(MemoryLayout<vnode_fdinfowithpath>.size)
         let rc = withUnsafeMutablePointer(to: &info) {
             proc_pidfdinfo(pid, fd, PROC_PIDFDVNODEPATHINFO, $0, size)
         }
-        guard rc == size else { return "" }
-        return fixedChars(info.pvip.vip_path)
+        guard rc == size else { return nil }
+        let stat = info.pvip.vip_vi.vi_stat
+        return FileDescriptorInfo(
+            id: fd,
+            kind: .vnode,
+            name: fixedChars(info.pvip.vip_path),
+            openFlags: info.pfi.fi_openflags,
+            statusFlags: info.pfi.fi_status,
+            offset: Int64(info.pfi.fi_offset),
+            fileInfoType: info.pfi.fi_type,
+            guardFlags: info.pfi.fi_guardflags,
+            vnode: vnodeInfo(stat: stat)
+        )
+    }
+
+    private static func socketDescriptor(pid: pid_t, fd: Int32) -> FileDescriptorInfo? {
+        var info = socket_fdinfo()
+        let size = Int32(MemoryLayout<socket_fdinfo>.size)
+        let rc = withUnsafeMutablePointer(to: &info) {
+            proc_pidfdinfo(pid, fd, PROC_PIDFDSOCKETINFO, $0, size)
+        }
+        guard rc == size else { return nil }
+        let socket = socketInfo(fd: fd, psi: info.psi)
+        let name = socket.map { socketEndpoint($0) } ?? ""
+        return FileDescriptorInfo(
+            id: fd,
+            kind: .socket,
+            name: name,
+            openFlags: info.pfi.fi_openflags,
+            statusFlags: info.pfi.fi_status,
+            offset: Int64(info.pfi.fi_offset),
+            fileInfoType: info.pfi.fi_type,
+            guardFlags: info.pfi.fi_guardflags,
+            socket: socket
+        )
+    }
+
+    static func socketInfo(fd: Int32, psi: socket_info) -> SocketInfo? {
+        switch Int(psi.soi_kind) {
+        case Int(SOCKINFO_TCP):
+            let tcp = psi.soi_proto.pri_tcp
+            let ini = tcp.tcpsi_ini
+            guard let (proto, laddr, lport, faddr, fport) = decode(ini, tcp: true) else { return nil }
+            return SocketInfo(
+                id: fd,
+                proto: proto,
+                localAddress: laddr,
+                localPort: lport,
+                remoteAddress: faddr,
+                remotePort: fport,
+                state: tcpStateString(tcp.tcpsi_state),
+                addressFamily: Int32(psi.soi_family),
+                socketType: Int32(psi.soi_type),
+                protocolNumber: Int32(psi.soi_protocol),
+                socketKind: Int32(psi.soi_kind),
+                socketOptions: UInt16(bitPattern: psi.soi_options),
+                socketStateFlags: UInt16(bitPattern: psi.soi_state),
+                linger: psi.soi_linger,
+                socketTimeout: psi.soi_timeo,
+                socketError: psi.soi_error,
+                outOfBandMark: psi.soi_oobmark,
+                queueLength: psi.soi_qlen,
+                incompleteQueueLength: psi.soi_incqlen,
+                queueLimit: psi.soi_qlimit,
+                receiveBuffer: socketBuffer(psi.soi_rcv),
+                sendBuffer: socketBuffer(psi.soi_snd),
+                tcpStateRaw: Int32(tcp.tcpsi_state),
+                tcpMaximumSegmentSize: Int32(tcp.tcpsi_mss),
+                tcpFlags: tcp.tcpsi_flags,
+                tcpTimers: tcpTimers(tcp.tcpsi_timer)
+            )
+
+        case Int(SOCKINFO_IN):
+            let ini = psi.soi_proto.pri_in
+            guard let (proto, laddr, lport, faddr, fport) = decode(ini, tcp: false) else { return nil }
+            return SocketInfo(
+                id: fd,
+                proto: proto,
+                localAddress: laddr,
+                localPort: lport,
+                remoteAddress: faddr,
+                remotePort: fport,
+                state: "",
+                addressFamily: Int32(psi.soi_family),
+                socketType: Int32(psi.soi_type),
+                protocolNumber: Int32(psi.soi_protocol),
+                socketKind: Int32(psi.soi_kind),
+                socketOptions: UInt16(bitPattern: psi.soi_options),
+                socketStateFlags: UInt16(bitPattern: psi.soi_state),
+                linger: psi.soi_linger,
+                socketTimeout: psi.soi_timeo,
+                socketError: psi.soi_error,
+                outOfBandMark: psi.soi_oobmark,
+                queueLength: psi.soi_qlen,
+                incompleteQueueLength: psi.soi_incqlen,
+                queueLimit: psi.soi_qlimit,
+                receiveBuffer: socketBuffer(psi.soi_rcv),
+                sendBuffer: socketBuffer(psi.soi_snd)
+            )
+
+        default:
+            return nil
+        }
+    }
+
+    private static func socketEndpoint(_ socket: SocketInfo) -> String {
+        let local = socket.localPort == 0 ? socket.localAddress : "\(socket.localAddress):\(socket.localPort)"
+        guard socket.remotePort != 0 || !socket.remoteAddress.isEmpty else { return local }
+        let remote = socket.remotePort == 0 ? socket.remoteAddress : "\(socket.remoteAddress):\(socket.remotePort)"
+        return "\(local) -> \(remote)"
+    }
+
+    private static func vnodeInfo(stat: vinfo_stat) -> VnodeDescriptorInfo {
+        VnodeDescriptorInfo(
+            typeRaw: Int32(stat.vst_mode & UInt16(S_IFMT)),
+            type: vnodeKind(mode: stat.vst_mode),
+            mode: stat.vst_mode,
+            deviceID: stat.vst_dev,
+            specialDeviceID: stat.vst_rdev,
+            inode: stat.vst_ino,
+            size: Int64(stat.vst_size),
+            accessTime: date(seconds: stat.vst_atime, nanos: stat.vst_atimensec),
+            modificationTime: date(seconds: stat.vst_mtime, nanos: stat.vst_mtimensec),
+            statusChangeTime: date(seconds: stat.vst_ctime, nanos: stat.vst_ctimensec),
+            birthTime: date(seconds: stat.vst_birthtime, nanos: stat.vst_birthtimensec)
+        )
+    }
+
+    private static func vnodeKind(mode: UInt16) -> VnodeKind {
+        switch mode & S_IFMT {
+        case S_IFREG: return .regular
+        case S_IFDIR: return .directory
+        case S_IFLNK: return .symbolicLink
+        case S_IFCHR: return .characterDevice
+        case S_IFBLK: return .blockDevice
+        case S_IFSOCK: return .socket
+        case S_IFIFO: return .fifo
+        default: return .unknown
+        }
+    }
+
+    private static func date(seconds: Int64, nanos: Int64) -> Date? {
+        guard seconds > 0 else { return nil }
+        return Date(timeIntervalSince1970: Double(seconds) + Double(nanos) / 1_000_000_000)
+    }
+
+    private static func socketBuffer(_ info: sockbuf_info) -> SocketBufferInfo {
+        SocketBufferInfo(
+            currentBytes: info.sbi_cc,
+            highWaterMark: info.sbi_hiwat,
+            mbufBytes: info.sbi_mbcnt,
+            mbufLimit: info.sbi_mbmax,
+            lowWaterMark: info.sbi_lowat,
+            flags: info.sbi_flags,
+            timeout: info.sbi_timeo
+        )
+    }
+
+    private static func tcpTimers<T>(_ timers: T) -> TCPTimerInfo {
+        withUnsafeBytes(of: timers) { raw in
+            let values = raw.bindMemory(to: Int32.self)
+            return TCPTimerInfo(
+                retransmit: values.indices.contains(0) ? values[0] : 0,
+                persist: values.indices.contains(1) ? values[1] : 0,
+                keepAlive: values.indices.contains(2) ? values[2] : 0,
+                twoMSL: values.indices.contains(3) ? values[3] : 0
+            )
+        }
+    }
+
+    static func decode(
+        _ ini: in_sockinfo,
+        tcp: Bool
+    ) -> (SocketProto, String, UInt16, String, UInt16)? {
+        let lport = hostPort(ini.insi_lport)
+        let fport = hostPort(ini.insi_fport)
+
+        let vflag = ini.insi_vflag
+        if vflag & UInt8(INI_IPV4) != 0 {
+            var lin = ini.insi_laddr.ina_46.i46a_addr4
+            var fin = ini.insi_faddr.ina_46.i46a_addr4
+            return (tcp ? .tcp4 : .udp4, formatIPv4(&lin), lport, formatIPv4(&fin), fport)
+        } else if vflag & UInt8(INI_IPV6) != 0 {
+            var lin6 = ini.insi_laddr.ina_6
+            var fin6 = ini.insi_faddr.ina_6
+            return (tcp ? .tcp6 : .udp6, formatIPv6(&lin6), lport, formatIPv6(&fin6), fport)
+        }
+        return nil
+    }
+
+    static func hostPort(_ raw: Int32) -> UInt16 {
+        UInt16(bigEndian: UInt16(truncatingIfNeeded: raw))
+    }
+
+    static func formatIPv4(_ addr: inout in_addr) -> String {
+        var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+        guard inet_ntop(AF_INET, &addr, &buf, socklen_t(INET_ADDRSTRLEN)) != nil else { return "" }
+        return String(cString: buf)
+    }
+
+    static func formatIPv6(_ addr: inout in6_addr) -> String {
+        var buf = [CChar](repeating: 0, count: Int(INET6_ADDRSTRLEN))
+        guard inet_ntop(AF_INET6, &addr, &buf, socklen_t(INET6_ADDRSTRLEN)) != nil else { return "" }
+        return String(cString: buf)
+    }
+
+    static func tcpStateString(_ state: Int32) -> String {
+        switch state {
+        case 0: return "CLOSED"
+        case 1: return "LISTEN"
+        case 2: return "SYN_SENT"
+        case 3: return "SYN_RCVD"
+        case 4: return "ESTABLISHED"
+        case 5: return "CLOSE_WAIT"
+        case 6: return "FIN_WAIT_1"
+        case 7: return "CLOSING"
+        case 8: return "LAST_ACK"
+        case 9: return "FIN_WAIT_2"
+        case 10: return "TIME_WAIT"
+        default: return String(state)
+        }
     }
 
     // MARK: - Current working directory
@@ -270,12 +546,18 @@ enum Libproc {
             result.append(
                 ThreadInfo(
                     id: threadID,
+                    name: fixedChars(info.pth_name),
                     cpuPercent: Double(info.pth_cpu_usage) / Double(TH_USAGE_SCALE) * 100.0,
                     cpuTime: info.pth_user_time &+ info.pth_system_time,
                     state: threadStateString(info.pth_run_state),
                     startAddress: nil,
                     startSymbol: nil,
-                    basePriority: info.pth_priority
+                    currentPriority: info.pth_curpri,
+                    basePriority: info.pth_priority,
+                    maxPriority: info.pth_maxpriority,
+                    schedulerPolicy: info.pth_policy,
+                    sleepTimeSeconds: info.pth_sleep_time,
+                    flags: info.pth_flags
                 )
             )
         }

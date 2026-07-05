@@ -59,6 +59,7 @@ let package = Package(
         // NSXPCConnection, registers/unregisters it via SMAppService, and
         // exposes it as a `PrivilegedSampling` provider. The app links this.
         .target(name: "ProcexpPrivileged", dependencies: ["ProcexpModel"]),
+        .testTarget(name: "ProcexpPrivilegedTests", dependencies: ["ProcexpPrivileged"]),
 
         // W2 — the privileged root daemon. Vends an NSXPCListener implementing
         // `ProcexpHelperProtocol`; reuses libproc (via ProcexpSampling's public

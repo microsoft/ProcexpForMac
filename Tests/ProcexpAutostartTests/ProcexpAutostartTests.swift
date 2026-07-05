@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 import ProcexpModel
 @testable import ProcexpAutostart
 
@@ -16,5 +17,14 @@ struct ProcexpAutostartTests {
         )
         _ = await provider.autostartLocation(for: record)
         #expect(Bool(true))
+    }
+
+    @Test("Login item heuristic is limited to Applications app bundles")
+    func loginItemHeuristicScope() {
+        #expect(AutostartProvider.looksLikeLoginItemCandidate("/Applications/Foo.app/Contents/MacOS/Foo"))
+        let userApp = NSHomeDirectory() + "/Applications/Foo.app/Contents/MacOS/Foo"
+        #expect(AutostartProvider.looksLikeLoginItemCandidate(userApp))
+        #expect(!AutostartProvider.looksLikeLoginItemCandidate("/usr/bin/foo"))
+        #expect(!AutostartProvider.looksLikeLoginItemCandidate("/tmp/Foo.app/Contents/MacOS/Foo"))
     }
 }

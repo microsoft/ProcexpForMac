@@ -22,6 +22,13 @@ enum ThreadSampler {
     /// `mach_usage` values are scaled by this factor (`TH_USAGE_SCALE`).
     private static let usageScale = 1000.0
 
+    private static func fixedChars<T>(_ value: T) -> String {
+        withUnsafeBytes(of: value) { raw -> String in
+            let bytes = raw.prefix { $0 != 0 }
+            return String(decoding: bytes, as: UTF8.self)
+        }
+    }
+
     /// Real per-thread info for `pid`, or `nil` if the task port is
     /// unobtainable (process gone, or — under ad-hoc signing — `task_for_pid`
     /// is denied even to root without the debugging entitlement).
@@ -71,7 +78,13 @@ enum ThreadSampler {
             var cpuPercent = Double(basic.cpu_usage) / usageScale * 100.0
             var cpuTime = time(basic.user_time) &+ time(basic.system_time)
             var runState = basic.run_state
+            var name = ""
+            var currentPriority: Int32 = 0
             var basePriority: Int32 = 0
+            var maxPriority: Int32 = 0
+            var schedulerPolicy: Int32 = 0
+            var sleepTimeSeconds: Int32 = 0
+            var flags: Int32 = 0
 
             var extended = thread_extended_info_data_t()
             var eCount = extendedCount
@@ -84,7 +97,13 @@ enum ThreadSampler {
                 cpuPercent = Double(extended.pth_cpu_usage) / usageScale * 100.0
                 cpuTime = extended.pth_user_time &+ extended.pth_system_time
                 runState = extended.pth_run_state
+                name = fixedChars(extended.pth_name)
+                currentPriority = extended.pth_curpri
                 basePriority = extended.pth_priority
+                maxPriority = extended.pth_maxpriority
+                schedulerPolicy = extended.pth_policy
+                sleepTimeSeconds = extended.pth_sleep_time
+                flags = extended.pth_flags
             }
 
             // Stable thread id (TID).
@@ -96,14 +115,24 @@ enum ThreadSampler {
                 }
             }
             let tid: UInt64 = ikr == KERN_SUCCESS ? idInfo.thread_id : UInt64(i)
+            let dispatchQueueAddress = ikr == KERN_SUCCESS && idInfo.dispatch_qaddr != 0
+                ? idInfo.dispatch_qaddr
+                : nil
 
             result.append(
                 ThreadInfoDTO(
                     id: tid,
+                    name: name,
                     cpuPercent: cpuPercent,
                     cpuTime: cpuTime,
                     state: stateString(runState),
+                    currentPriority: currentPriority,
                     basePriority: basePriority
+                    , maxPriority: maxPriority,
+                    schedulerPolicy: schedulerPolicy,
+                    sleepTimeSeconds: sleepTimeSeconds,
+                    flags: flags,
+                    dispatchQueueAddress: dispatchQueueAddress
                 )
             )
         }

@@ -56,7 +56,52 @@ struct ProcexpNetworkTests {
             socket.proto == .tcp4
                 && socket.localPort == port
                 && socket.state == "LISTEN"
+                && socket.addressFamily == AF_INET
+                && socket.socketType == SOCK_STREAM
+                && socket.protocolNumber == IPPROTO_TCP
+                && ((socket.socketOptions ?? 0) & UInt16(SO_REUSEADDR)) != 0
+                && (socket.queueLimit ?? 0) > 0
+                && (socket.receiveBuffer?.highWaterMark ?? 0) > 0
+                && (socket.sendBuffer?.highWaterMark ?? 0) > 0
         })
+    }
+
+    @Test("Finds a known UDP socket with generic socket metadata")
+    func findsKnownUDPSocket() async throws {
+        let fd = socket(AF_INET, SOCK_DGRAM, 0)
+        #expect(fd >= 0)
+        defer { if fd >= 0 { close(fd) } }
+
+        var addr = sockaddr_in()
+        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = 0
+        addr.sin_addr = in_addr(s_addr: in_addr_t(INADDR_LOOPBACK).bigEndian)
+
+        let bindResult = withUnsafePointer(to: &addr) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                bind(fd, sockaddrPtr, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        #expect(bindResult == 0)
+
+        var bound = sockaddr_in()
+        var boundLength = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let nameResult = withUnsafeMutablePointer(to: &bound) { ptr in
+            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+                getsockname(fd, sockaddrPtr, &boundLength)
+            }
+        }
+        #expect(nameResult == 0)
+
+        let port = UInt16(bigEndian: bound.sin_port)
+        let sockets = try await NetworkProvider().sockets(of: ProcessID(pid: getpid(), startTime: 0))
+        let socket = try #require(sockets.first { $0.proto == .udp4 && $0.localPort == port })
+        #expect(socket.addressFamily == AF_INET)
+        #expect(socket.socketType == SOCK_DGRAM)
+        #expect(socket.protocolNumber == IPPROTO_UDP)
+        #expect((socket.receiveBuffer?.highWaterMark ?? 0) > 0)
+        #expect((socket.sendBuffer?.highWaterMark ?? 0) > 0)
     }
 
     @Test("Finds TCP connections held open by the external fixture app")

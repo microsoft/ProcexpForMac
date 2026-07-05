@@ -82,6 +82,11 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
     public var uid: UInt32
     public var userName: String?
     public var sessionTTY: String?
+    public var bsdFlagsRaw: UInt32?
+    public var bsdStatusRaw: UInt32?
+    public var hasControllingTTY: Bool
+    public var isSessionLeader: Bool
+    public var is64Bit: Bool?
 
     // Descriptive
     public var displayDescription: String?
@@ -96,6 +101,10 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
     /// Cumulative user+system CPU time in nanoseconds.
     public var cpuTime: UInt64
     public var threadCount: Int
+    public var runningThreadCount: Int?
+    public var threadUserTime: UInt64?
+    public var threadSystemTime: UInt64?
+    public var taskPolicy: Int32?
     public var contextSwitches: UInt64?
 
     // Memory (bytes)
@@ -103,6 +112,14 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
     public var virtualSize: UInt64
     public var physFootprint: UInt64?
     public var pageFaults: UInt64?
+    public var pageIns: UInt64?
+    public var copyOnWriteFaults: UInt64?
+
+    // Kernel activity counters
+    public var machMessagesSent: UInt64?
+    public var machMessagesReceived: UInt64?
+    public var machSyscalls: UInt64?
+    public var unixSyscalls: UInt64?
 
     // I/O (cumulative bytes)
     public var diskBytesRead: UInt64?
@@ -137,6 +154,11 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
         uid: UInt32 = 0,
         userName: String? = nil,
         sessionTTY: String? = nil,
+        bsdFlagsRaw: UInt32? = nil,
+        bsdStatusRaw: UInt32? = nil,
+        hasControllingTTY: Bool = false,
+        isSessionLeader: Bool = false,
+        is64Bit: Bool? = nil,
         displayDescription: String? = nil,
         companyName: String? = nil,
         version: String? = nil,
@@ -144,11 +166,21 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
         cpuPercent: Double = 0,
         cpuTime: UInt64 = 0,
         threadCount: Int = 0,
+        runningThreadCount: Int? = nil,
+        threadUserTime: UInt64? = nil,
+        threadSystemTime: UInt64? = nil,
+        taskPolicy: Int32? = nil,
         contextSwitches: UInt64? = nil,
         residentSize: UInt64 = 0,
         virtualSize: UInt64 = 0,
         physFootprint: UInt64? = nil,
         pageFaults: UInt64? = nil,
+        pageIns: UInt64? = nil,
+        copyOnWriteFaults: UInt64? = nil,
+        machMessagesSent: UInt64? = nil,
+        machMessagesReceived: UInt64? = nil,
+        machSyscalls: UInt64? = nil,
+        unixSyscalls: UInt64? = nil,
         diskBytesRead: UInt64? = nil,
         diskBytesWritten: UInt64? = nil,
         fileDescriptorCount: Int? = nil,
@@ -171,6 +203,11 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
         self.uid = uid
         self.userName = userName
         self.sessionTTY = sessionTTY
+        self.bsdFlagsRaw = bsdFlagsRaw
+        self.bsdStatusRaw = bsdStatusRaw
+        self.hasControllingTTY = hasControllingTTY
+        self.isSessionLeader = isSessionLeader
+        self.is64Bit = is64Bit
         self.displayDescription = displayDescription
         self.companyName = companyName
         self.version = version
@@ -178,11 +215,21 @@ public struct ProcessRecord: Identifiable, Sendable, Hashable {
         self.cpuPercent = cpuPercent
         self.cpuTime = cpuTime
         self.threadCount = threadCount
+        self.runningThreadCount = runningThreadCount
+        self.threadUserTime = threadUserTime
+        self.threadSystemTime = threadSystemTime
+        self.taskPolicy = taskPolicy
         self.contextSwitches = contextSwitches
         self.residentSize = residentSize
         self.virtualSize = virtualSize
         self.physFootprint = physFootprint
         self.pageFaults = pageFaults
+        self.pageIns = pageIns
+        self.copyOnWriteFaults = copyOnWriteFaults
+        self.machMessagesSent = machMessagesSent
+        self.machMessagesReceived = machMessagesReceived
+        self.machSyscalls = machSyscalls
+        self.unixSyscalls = unixSyscalls
         self.diskBytesRead = diskBytesRead
         self.diskBytesWritten = diskBytesWritten
         self.fileDescriptorCount = fileDescriptorCount
