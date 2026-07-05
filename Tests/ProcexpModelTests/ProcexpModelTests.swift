@@ -158,6 +158,15 @@ struct ProcexpModelTests {
         #expect(ThreadColumn.state.defaultWidth > 0)
     }
 
+    @Test("Lower-pane flag formatters include names and raw values")
+    func lowerPaneFlagFormatters() {
+        #expect(FileDescriptorFlagFormatter.status(0x6) == "Close-on-exec, Guarded (0x6)")
+        #expect(FileDescriptorFlagFormatter.status(nil) == "")
+        #expect(FileDescriptorFlagFormatter.guardFlags(0x3) == "Close, Dup (0x3)")
+        #expect(ThreadFlagFormatter.flags(0x3) == "Swapped, Idle (0x3)")
+        #expect(ThreadFlagFormatter.flags(0) == "")
+    }
+
     @Test("New/dead colors take priority over own-process color")
     func colorRulePriority() {
         let bg = ProcessColorRule.background(

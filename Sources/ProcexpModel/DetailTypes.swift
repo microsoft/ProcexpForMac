@@ -8,6 +8,48 @@
 
 import Foundation
 
+public enum FileDescriptorFlagFormatter {
+    public static func status(_ flags: UInt32?) -> String {
+        namedFlags(flags, definitions: [
+            (1, "Shared"),
+            (2, "Close-on-exec"),
+            (4, "Guarded"),
+            (8, "Close-on-fork"),
+        ])
+    }
+
+    public static func guardFlags(_ flags: UInt32?) -> String {
+        namedFlags(flags, definitions: [
+            (1, "Close"),
+            (2, "Dup"),
+            (4, "Socket IPC"),
+            (8, "Fileport"),
+        ])
+    }
+
+    private static func namedFlags(_ flags: UInt32?, definitions: [(UInt32, String)]) -> String {
+        guard let flags, flags != 0 else { return "" }
+        let names = definitions.compactMap { mask, name in (flags & mask) != 0 ? name : nil }
+        let value = String(format: "0x%X", flags)
+        return names.isEmpty ? value : "\(names.joined(separator: ", ")) (\(value))"
+    }
+}
+
+public enum ThreadFlagFormatter {
+    public static func flags(_ flags: Int32) -> String {
+        guard flags != 0 else { return "" }
+        let unsigned = UInt32(bitPattern: flags)
+        let definitions: [(UInt32, String)] = [
+            (1, "Swapped"),
+            (2, "Idle"),
+            (4, "Forced Idle"),
+        ]
+        let names = definitions.compactMap { mask, name in (unsigned & mask) != 0 ? name : nil }
+        let value = String(format: "0x%X", unsigned)
+        return names.isEmpty ? value : "\(names.joined(separator: ", ")) (\(value))"
+    }
+}
+
 public protocol LowerPaneColumn: CaseIterable, Codable, Hashable, Sendable, RawRepresentable where RawValue == String {
     var title: String { get }
     var defaultWidth: Double { get }

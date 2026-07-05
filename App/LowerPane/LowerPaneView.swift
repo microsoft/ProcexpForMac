@@ -1141,8 +1141,8 @@ private struct FileDescriptorRowsTable: NSViewRepresentable {
             case "access": return accessText(row.openFlags)
             case "offset": return row.offset.map(String.init) ?? ""
             case "size": return row.vnode.map { ByteFormat.bytes(UInt64(max(0, $0.size))) } ?? ""
-            case "status": return flagsHex(row.statusFlags)
-            case "guardFlags": return flagsHex(row.guardFlags)
+            case "status": return FileDescriptorFlagFormatter.status(row.statusFlags)
+            case "guardFlags": return FileDescriptorFlagFormatter.guardFlags(row.guardFlags)
             case "vnodeType": return row.vnode?.type.rawValue ?? ""
             case "inode": return row.vnode.map { String($0.inode) } ?? ""
             case "socketFamily": return row.socket?.addressFamily.map(String.init) ?? ""
@@ -1162,13 +1162,8 @@ private struct FileDescriptorRowsTable: NSViewRepresentable {
             case O_RDONLY: return "Read"
             case O_WRONLY: return "Write"
             case O_RDWR: return "Read/Write"
-            default: return flagsHex(flags)
+            default: return String(format: "0x%X", flags)
             }
-        }
-
-        private func flagsHex(_ flags: UInt32?) -> String {
-            guard let flags, flags != 0 else { return "" }
-            return String(format: "0x%X", flags)
         }
 
         private func alignment(for id: String) -> NSTextAlignment {
@@ -1412,7 +1407,7 @@ private struct ThreadRowsTable: NSViewRepresentable {
             case "maxPriority": return row.maxPriority == 0 ? "" : String(row.maxPriority)
             case "policy": return policyText(row.schedulerPolicy)
             case "sleepTime": return row.sleepTimeSeconds > 0 ? "\(row.sleepTimeSeconds)s" : ""
-            case "flags": return row.flags == 0 ? "" : String(format: "0x%X", row.flags)
+            case "flags": return ThreadFlagFormatter.flags(row.flags)
             case "dispatchQueue": return hexString(row.dispatchQueueAddress)
             case "userTime": return ""
             case "kernelTime": return ""
