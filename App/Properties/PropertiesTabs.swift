@@ -202,7 +202,6 @@ struct ImageTab: View {
                 }
             }
 
-            verifyResult
             Spacer(minLength: 0)
             buttonRow
         }
@@ -266,36 +265,6 @@ struct ImageTab: View {
         }
     }
 
-    // MARK: Inline verify result
-
-    @ViewBuilder private var verifyResult: some View {
-        if let sig = detail.signature {
-            Section(title: "Code Signature") {
-                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 3) {
-                    InfoRow(label: "Status", value: sig.status.rawValue.capitalized)
-                    InfoRow(label: "Signer", value: sig.signerDescription)
-                    InfoRow(label: "Publisher", value: sig.publisherDescription ?? "")
-                    InfoRow(label: "Team ID", value: sig.teamID ?? "")
-                    if let reason = sig.validationErrorMessage, !reason.isEmpty {
-                        InfoRow(label: "Reason", value: reason)
-                    }
-                    InfoRow(label: "Notarized", value: sig.isNotarized ? "Yes" : "No")
-                    InfoRow(label: "Platform Binary", value: sig.isPlatformBinary ? "Yes" : "No")
-                    InfoRow(label: "SHA-256", value: sig.sha256 ?? "", mono: true)
-                    if let vt = sig.virusTotal {
-                        InfoRow(label: "VirusTotal", value: "\(vt.positives) / \(vt.total) detections")
-                    }
-                }
-                authorityChain(sig.authority)
-                if let note = detail.virusTotalNote {
-                    Text(note).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-        } else if detail.isVerifying {
-            Text("Verifying signature…").font(.caption).foregroundStyle(.secondary)
-        }
-    }
-
     private func parentText(_ parent: ProcessID) -> String {
         if let p = model.snapshot.processes[parent] {
             return "\(p.name) (\(parent.pid))"
@@ -314,6 +283,51 @@ struct ImageTab: View {
     private func reveal() {
         guard let path = record.executablePath, !path.isEmpty else { return }
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+    }
+}
+
+// MARK: - Signature tab
+
+struct SignatureTab: View {
+    let record: ProcessRecord
+    @Bindable var detail: PropertiesDetail
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let sig = detail.signature {
+                Section(title: "Code Signature") {
+                    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 3) {
+                        InfoRow(label: "Status", value: sig.status.rawValue.capitalized)
+                        InfoRow(label: "Signer", value: sig.signerDescription)
+                        InfoRow(label: "Publisher", value: sig.publisherDescription ?? "")
+                        InfoRow(label: "Team ID", value: sig.teamID ?? "")
+                        if let reason = sig.validationErrorMessage, !reason.isEmpty {
+                            InfoRow(label: "Reason", value: reason)
+                        }
+                        InfoRow(label: "Notarized", value: sig.isNotarized ? "Yes" : "No")
+                        InfoRow(label: "Platform Binary", value: sig.isPlatformBinary ? "Yes" : "No")
+                        InfoRow(label: "SHA-256", value: sig.sha256 ?? "", mono: true)
+                        if let vt = sig.virusTotal {
+                            InfoRow(label: "VirusTotal", value: "\(vt.positives) / \(vt.total) detections")
+                        }
+                    }
+                    authorityChain(sig.authority)
+                    if let note = detail.virusTotalNote {
+                        Text(note).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } else if detail.isVerifying {
+                Text("Verifying signature…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text((record.executablePath ?? "").isEmpty ? "No executable path was reported for this process." : "No signature information is available.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(8)
     }
 }
 

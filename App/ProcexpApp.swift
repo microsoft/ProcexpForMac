@@ -52,7 +52,7 @@ struct ProcexpApp: App {
                     .environment(model)
             }
         }
-        .defaultSize(width: 760, height: 720)
+        .defaultSize(width: 760, height: 620)
 
         // R3 — DLL / mapped-image detail window (double-click a row in the
         // lower pane's DLLs list). Multiple may be open at once, keyed by

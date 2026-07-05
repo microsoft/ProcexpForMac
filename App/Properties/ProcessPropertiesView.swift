@@ -38,6 +38,7 @@ struct ProcessPropertiesView: View {
     /// The Windows Procexp tab set, in order.
     enum PropertiesTab: String, CaseIterable, Identifiable {
         case image = "Image"
+        case signature = "Signature"
         case performance = "Performance"
         case performanceGraph = "Performance Graph"
         case threads = "Threads"
@@ -61,7 +62,7 @@ struct ProcessPropertiesView: View {
                     tabContent(record: record)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
-                .frame(minWidth: 640, idealWidth: 680, minHeight: 680, idealHeight: 700)
+                .frame(minWidth: 640, idealWidth: 680, minHeight: 560, idealHeight: 600)
                 .navigationTitle("\(record.name) (PID \(pid.pid)) Properties")
             } else {
                 ContentUnavailableView(
@@ -185,6 +186,7 @@ struct ProcessPropertiesView: View {
     private func tabContent(record: ProcessRecord) -> some View {
         switch selectedTab {
         case .image:            ImageTab(pid: pid, record: record, detail: detail)
+        case .signature:        SignatureTab(record: record, detail: detail)
         case .performance:      PerformanceTab(record: record, detail: detail)
         case .performanceGraph: PerformanceGraphTab(detail: detail)
         case .threads:          ThreadsTab(record: record, detail: detail)
