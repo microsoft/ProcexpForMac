@@ -507,9 +507,9 @@ struct ThreadsTab: View {
                     .padding()
             } else {
                 Table(detail.threads, selection: $selectedThreads) {
-                    TableColumn("TID") { thread in selectableText(String(thread.id), selected: selectedThreads.contains(thread.id)).monospacedDigit() }
-                    TableColumn("CPU %") { thread in selectableText(String(format: "%.2f", thread.cpuPercent), selected: selectedThreads.contains(thread.id)).monospacedDigit() }
-                    TableColumn("State") { thread in selectableText(thread.state.isEmpty ? "—" : thread.state, selected: selectedThreads.contains(thread.id)) }
+                    TableColumn("TID") { thread in tooltipText(String(thread.id), selected: selectedThreads.contains(thread.id)).monospacedDigit() }
+                    TableColumn("CPU %") { thread in tooltipText(String(format: "%.2f", thread.cpuPercent), selected: selectedThreads.contains(thread.id)).monospacedDigit() }
+                    TableColumn("State") { thread in tooltipText(thread.state.isEmpty ? "—" : thread.state, selected: selectedThreads.contains(thread.id)) }
                 }
             }
         }
@@ -635,6 +635,8 @@ private struct SocketRowsTable: NSViewRepresentable {
             let cell = tableView.makeView(withIdentifier: tableColumn.identifier, owner: self) as? NSTableCellView ?? makeCell(id: tableColumn.identifier)
             let value = text(for: id, socket: sockets[row])
             cell.textField?.stringValue = value
+            cell.textField?.toolTip = value.isEmpty ? nil : value
+            cell.toolTip = value.isEmpty ? nil : value
             return cell
         }
 
@@ -763,11 +765,11 @@ struct EnvironmentTab: View {
             } else {
                 Table(detail.environment, selection: $selectedVariables) {
                     TableColumn("Variable") { variable in
-                        selectableText(variable.id, selected: selectedVariables.contains(variable.id))
+                        tooltipText(variable.id, selected: selectedVariables.contains(variable.id))
                             .font(.system(.body, design: .monospaced))
                     }
                     TableColumn("Value") { variable in
-                        selectableText(variable.value, selected: selectedVariables.contains(variable.id))
+                        tooltipText(variable.value, selected: selectedVariables.contains(variable.id))
                             .font(.system(.body, design: .monospaced))
                             .textSelection(.enabled)
                     }
@@ -814,7 +816,7 @@ struct StringsTab: View {
                     .foregroundStyle(.secondary)
                 List(selection: $selectedRows) {
                     ForEach(Array(filtered.enumerated()), id: \.offset) { offset, line in
-                        selectableText(line, selected: selectedRows.contains(offset))
+                        tooltipText(line, selected: selectedRows.contains(offset))
                         .font(.system(.caption, design: .monospaced))
                         .textSelection(.enabled)
                         .lineLimit(1)
@@ -838,6 +840,13 @@ struct StringsTab: View {
 
 private func selectableText(_ text: String, selected: Bool) -> Text {
     Text(text).foregroundStyle(selected ? Color.white : Color.primary)
+}
+
+private func tooltipText(_ text: String, selected: Bool) -> some View {
+    let display = text.isEmpty ? "—" : text
+    return Text(display)
+        .foregroundStyle(selected ? Color.white : Color.primary)
+        .help(display)
 }
 
 // MARK: - Security tab
