@@ -220,7 +220,7 @@ private struct FindResultsTable: NSViewRepresentable {
         context.coordinator.tableView = tableView
         tableView.delegate = context.coordinator
         tableView.dataSource = context.coordinator
-        tableView.headerView = NSTableHeaderView()
+        tableView.headerView = ResizingCursorTableHeaderView()
         tableView.rowHeight = 20
         tableView.usesAlternatingRowBackgroundColors = false
         tableView.backgroundColor = .textBackgroundColor

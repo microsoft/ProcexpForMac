@@ -558,7 +558,7 @@ private struct SocketRowsTable: NSViewRepresentable {
         context.coordinator.tableView = tableView
         tableView.delegate = context.coordinator
         tableView.dataSource = context.coordinator
-        tableView.headerView = NSTableHeaderView()
+        tableView.headerView = ResizingCursorTableHeaderView()
         tableView.rowHeight = 20
         tableView.usesAlternatingRowBackgroundColors = false
         tableView.backgroundColor = .textBackgroundColor
@@ -763,17 +763,195 @@ struct EnvironmentTab: View {
                     .multilineTextAlignment(.center)
                     .padding()
             } else {
-                Table(detail.environment, selection: $selectedVariables) {
-                    TableColumn("Variable") { variable in
-                        tooltipText(variable.id, selected: selectedVariables.contains(variable.id))
-                            .font(.system(.body, design: .monospaced))
-                    }
-                    TableColumn("Value") { variable in
-                        tooltipText(variable.value, selected: selectedVariables.contains(variable.id))
-                            .font(.system(.body, design: .monospaced))
-                            .textSelection(.enabled)
-                    }
+                EnvironmentRowsTable(rows: detail.environment, selection: $selectedVariables)
+            }
+        }
+    }
+}
+
+private struct EnvironmentRowsTable: NSViewRepresentable {
+    let rows: [EnvVar]
+    @Binding var selection: Set<EnvVar.ID>
+
+    func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.scrollerStyle = .legacy
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = .textBackgroundColor
+
+        let tableView = BorderlessGridTableView()
+        context.coordinator.tableView = tableView
+        tableView.delegate = context.coordinator
+        tableView.dataSource = context.coordinator
+        tableView.headerView = ResizingCursorTableHeaderView()
+        tableView.rowHeight = 20
+        tableView.usesAlternatingRowBackgroundColors = false
+        tableView.backgroundColor = .textBackgroundColor
+        tableView.gridStyleMask = []
+        tableView.intercellSpacing = NSSize(width: 0, height: 0)
+        tableView.allowsColumnResizing = true
+        tableView.allowsColumnReordering = true
+        tableView.allowsMultipleSelection = true
+        tableView.typeSelectHandler = { text in context.coordinator.handleTypeSelect(text) }
+        for column in Coordinator.columns { tableView.addTableColumn(column.tableColumn) }
+        context.coordinator.autosizesColumns = !TableColumnPersistence.hasSavedLayout(key: Coordinator.persistenceKey)
+        TableColumnPersistence.apply(to: tableView, key: Coordinator.persistenceKey)
+        scrollView.documentView = tableView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.rows = rows
+        context.coordinator.selection = $selection
+        context.coordinator.tableView?.reloadData()
+        context.coordinator.autosizeColumns()
+    }
+
+    final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+        struct ColumnDef {
+            let id: String
+            let title: String
+            let width: CGFloat
+
+            var tableColumn: NSTableColumn {
+                let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
+                column.title = title
+                column.width = width
+                column.minWidth = min(width, 80)
+                column.resizingMask = [.userResizingMask, .autoresizingMask]
+                return column
+            }
+        }
+
+        static let columns = [
+            ColumnDef(id: "variable", title: "Variable", width: 180),
+            ColumnDef(id: "value", title: "Value", width: 520),
+        ]
+        static let persistenceKey = "properties.environment.columns"
+
+        var rows: [EnvVar] = []
+        var selection: Binding<Set<EnvVar.ID>>
+        weak var tableView: NSTableView?
+        var autosizesColumns = true
+        private var suppressColumnPersistence = false
+        private let typeSelectBuffer = TypeSelectBuffer()
+
+        init(selection: Binding<Set<EnvVar.ID>>) {
+            self.selection = selection
+        }
+
+        func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
+
+        func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+            guard rows.indices.contains(row), let tableColumn else { return nil }
+            let id = tableColumn.identifier.rawValue
+            let cell = tableView.makeView(withIdentifier: tableColumn.identifier, owner: self) as? NSTableCellView ?? makeCell(id: tableColumn.identifier)
+            let value = text(for: id, row: rows[row])
+            cell.textField?.stringValue = value
+            cell.textField?.toolTip = value.isEmpty ? nil : value
+            cell.toolTip = value.isEmpty ? nil : value
+            return cell
+        }
+
+        func tableViewSelectionDidChange(_ notification: Notification) {
+            guard let tableView else { return }
+            var selected = Set<EnvVar.ID>()
+            for index in tableView.selectedRowIndexes where rows.indices.contains(index) {
+                selected.insert(rows[index].id)
+            }
+            selection.wrappedValue = selected
+        }
+
+        func tableView(_ tableView: NSTableView, sizeToFitWidthOfColumn column: Int) -> CGFloat {
+            guard tableView.tableColumns.indices.contains(column) else { return 80 }
+            return autosizeWidth(for: tableView.tableColumns[column])
+        }
+
+        func autosizeColumns() {
+            guard autosizesColumns, let tableView else { return }
+            suppressColumnPersistence = true
+            defer { suppressColumnPersistence = false }
+            for column in tableView.tableColumns {
+                column.width = autosizeWidth(for: column)
+            }
+        }
+
+        func tableViewColumnDidMove(_ notification: Notification) {
+            guard let tableView, !suppressColumnPersistence else { return }
+            autosizesColumns = false
+            TableColumnPersistence.save(from: tableView, key: Self.persistenceKey)
+        }
+
+        func tableViewColumnDidResize(_ notification: Notification) {
+            guard let tableView, !suppressColumnPersistence else { return }
+            autosizesColumns = false
+            TableColumnPersistence.save(from: tableView, key: Self.persistenceKey)
+        }
+
+        func handleTypeSelect(_ text: String) -> Bool {
+            let prefix = typeSelectBuffer.append(text)
+            if selectNext(matching: prefix) { return true }
+            return selectNext(matching: typeSelectBuffer.reset(to: text))
+        }
+
+        private func selectNext(matching prefix: String) -> Bool {
+            guard !rows.isEmpty, let tableView else { return false }
+            let start = tableView.selectedRow >= 0 ? tableView.selectedRow : -1
+            for offset in 1...rows.count {
+                let index = (start + offset) % rows.count
+                if rows[index].id.lowercased().hasPrefix(prefix) {
+                    tableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+                    tableView.scrollRowToVisible(index)
+                    selection.wrappedValue = [rows[index].id]
+                    return true
                 }
+            }
+            return false
+        }
+
+        private func makeCell(id: NSUserInterfaceItemIdentifier) -> NSTableCellView {
+            let cell = NSTableCellView(frame: .zero)
+            cell.identifier = id
+            let textField = NSTextField(labelWithString: "")
+            textField.translatesAutoresizingMaskIntoConstraints = false
+            textField.lineBreakMode = .byTruncatingMiddle
+            textField.usesSingleLineMode = true
+            textField.cell?.wraps = false
+            textField.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+            textField.textColor = .labelColor
+            cell.addSubview(textField)
+            cell.textField = textField
+            NSLayoutConstraint.activate([
+                textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
+                textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
+                textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+            ])
+            return cell
+        }
+
+        private func autosizeWidth(for column: NSTableColumn) -> CGFloat {
+            let id = column.identifier.rawValue
+            let font = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+            let valueAttributes: [NSAttributedString.Key: Any] = [.font: font]
+            let headerAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)]
+            var width = ceil((column.title as NSString).size(withAttributes: headerAttributes).width) + 28
+            for row in rows {
+                width = max(width, ceil((text(for: id, row: row) as NSString).size(withAttributes: valueAttributes).width) + 18)
+            }
+            return max(column.minWidth, min(width, id == "variable" ? 360 : 1200))
+        }
+
+        private func text(for id: String, row: EnvVar) -> String {
+            switch id {
+            case "variable": return row.id
+            case "value": return row.value
+            default: return ""
             }
         }
     }

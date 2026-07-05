@@ -134,6 +134,18 @@ final class BorderlessGridTableView: NSTableView {
     }
 }
 
+final class ResizingCursorTableHeaderView: NSTableHeaderView {
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        guard let tableView else { return }
+        var x: CGFloat = 0
+        for column in tableView.tableColumns.dropLast() {
+            x += column.width + tableView.intercellSpacing.width
+            addCursorRect(NSRect(x: x - 3, y: bounds.minY, width: 6, height: bounds.height), cursor: .resizeLeftRight)
+        }
+    }
+}
+
 @MainActor
 private final class InstantTableTooltip {
     private let maxWidth: CGFloat = 720

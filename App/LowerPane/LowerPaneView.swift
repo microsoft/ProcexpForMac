@@ -614,7 +614,7 @@ private struct ModuleRowsTable: NSViewRepresentable {
         context.coordinator.tableView = tableView
         tableView.delegate = context.coordinator
         tableView.dataSource = context.coordinator
-        tableView.headerView = NSTableHeaderView()
+        tableView.headerView = ResizingCursorTableHeaderView()
         tableView.rowHeight = 20
         tableView.usesAlternatingRowBackgroundColors = false
         tableView.backgroundColor = .textBackgroundColor
@@ -930,7 +930,7 @@ private struct FileDescriptorRowsTable: NSViewRepresentable {
         context.coordinator.tableView = tableView
         tableView.delegate = context.coordinator
         tableView.dataSource = context.coordinator
-        tableView.headerView = NSTableHeaderView()
+        tableView.headerView = ResizingCursorTableHeaderView()
         tableView.rowHeight = 20
         tableView.usesAlternatingRowBackgroundColors = false
         tableView.backgroundColor = .textBackgroundColor
@@ -1194,7 +1194,7 @@ private struct ThreadRowsTable: NSViewRepresentable {
         context.coordinator.tableView = tableView
         tableView.delegate = context.coordinator
         tableView.dataSource = context.coordinator
-        tableView.headerView = NSTableHeaderView()
+        tableView.headerView = ResizingCursorTableHeaderView()
         tableView.rowHeight = 20
         tableView.usesAlternatingRowBackgroundColors = false
         tableView.backgroundColor = .textBackgroundColor

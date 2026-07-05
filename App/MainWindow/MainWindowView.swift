@@ -210,7 +210,7 @@ struct MainWindowView: View {
                 openWindow(id: FindHandleDLLWindow.id)
             }
             iconToggle("target", isOn: model.targetWindowPickerActive,
-                       tip: "Find Window's Process") {
+                       tip: "Find Window's Process — click a window in another app to select its process") {
                 model.toggleTargetWindowPicker()
             }
 

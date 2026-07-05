@@ -729,6 +729,7 @@ final class AppModel {
             return false
         }
         selection = record.id
+        NSApp.activate(ignoringOtherApps: true)
         return true
     }
 

@@ -2,7 +2,7 @@
 //  SystemStatsProvider.swift
 //  ProcexpGraphs — W4
 //
-//  A real `SystemStatsProviding` backed by Mach host statistics + sysctl.
+//  A real `SystemStatsProviding` backed by Mach host statistics, sysctl, and IOKit.
 //
 //  What is REAL here:
 //    - cpuTotalPercent + perCoreCPUPercent : host_processor_info CPU-load ticks,
@@ -11,10 +11,9 @@
 //      (HOST_VM_INFO64) + HW_MEMSIZE sysctl.
 //    - swapUsed : sysctl VM_SWAPUSAGE (xsw_usage.xsu_used).
 //    - networkBytesPerSec : sysctl NET_RT_IFLIST2 interface byte counters, delta'd.
+//    - diskBytesPerSec : IOKit IOBlockStorageDriver byte counters, delta'd.
 //
 //  What is DEFERRED (left 0 by design — documented):
-//    - diskBytesPerSec : no cheap public system-wide disk-throughput counter that
-//      matches Process Explorer's semantics; left 0.
 //    - processCount / threadCount / handleCount : filled by the sampling engine (W1),
 //      not by this provider.
 //    - gpuPercent : provided elsewhere (W9 GPUStatsProvider); left nil here.
@@ -22,6 +21,7 @@
 
 import Foundation
 import Darwin
+import IOKit
 import ProcexpModel
 
 // MARK: - Delta state (actor for Sendable-safe previous-sample bookkeeping)
@@ -36,6 +36,8 @@ private actor SystemStatsDeltaState {
     var previousNetworkBytes: UInt64?
     /// Timestamp of the previous network sample.
     var previousNetworkTime: TimeInterval?
+    var previousDiskBytes: UInt64?
+    var previousDiskTime: TimeInterval?
 
     func updateCPU(
         _ new: [(user: UInt32, system: UInt32, idle: UInt32, nice: UInt32)]
@@ -66,12 +68,25 @@ private actor SystemStatsDeltaState {
     }
 
     func updateNetwork(totalBytes: UInt64, now: TimeInterval) -> UInt64 {
+        updateRate(totalBytes: totalBytes, now: now, previousBytes: &previousNetworkBytes, previousTime: &previousNetworkTime)
+    }
+
+    func updateDisk(totalBytes: UInt64, now: TimeInterval) -> UInt64 {
+        updateRate(totalBytes: totalBytes, now: now, previousBytes: &previousDiskBytes, previousTime: &previousDiskTime)
+    }
+
+    private func updateRate(
+        totalBytes: UInt64,
+        now: TimeInterval,
+        previousBytes: inout UInt64?,
+        previousTime: inout TimeInterval?
+    ) -> UInt64 {
         defer {
-            previousNetworkBytes = totalBytes
-            previousNetworkTime = now
+            previousBytes = totalBytes
+            previousTime = now
         }
-        guard let prevBytes = previousNetworkBytes,
-              let prevTime = previousNetworkTime else {
+        guard let prevBytes = previousBytes,
+              let prevTime = previousTime else {
             return 0
         }
         let dt = now - prevTime
@@ -96,15 +111,24 @@ public final class SystemStatsProvider: SystemStatsProviding {
         let mem = Self.readMemory()
         let swap = Self.readSwapUsed()
 
+        let now = ProcessInfo.processInfo.systemUptime
         let netTotal = Self.readTotalNetworkBytes()
         let netRate: UInt64
         if let netTotal {
             netRate = await state.updateNetwork(
                 totalBytes: netTotal,
-                now: ProcessInfo.processInfo.systemUptime
+                now: now
             )
         } else {
             netRate = 0
+        }
+
+        let diskTotal = Self.readTotalDiskBytes()
+        let diskRate: UInt64
+        if let diskTotal {
+            diskRate = await state.updateDisk(totalBytes: diskTotal, now: now)
+        } else {
+            diskRate = 0
         }
 
         return SystemStats(
@@ -115,7 +139,7 @@ public final class SystemStatsProvider: SystemStatsProviding {
             memoryWired: mem.wired,
             memoryCompressed: mem.compressed,
             swapUsed: swap,
-            diskBytesPerSec: 0,            // deferred (documented)
+            diskBytesPerSec: diskRate,
             networkBytesPerSec: netRate,
             gpuPercent: nil,              // provided by W9 GPUStatsProvider
             processCount: 0,             // filled by W1 sampling engine
@@ -265,5 +289,60 @@ public final class SystemStatsProvider: SystemStatsProviding {
             }
         }
         return total
+    }
+
+    private static func readTotalDiskBytes() -> UInt64? {
+        var total: UInt64 = 0
+        var found = false
+        for serviceName in ["IOBlockStorageDriver", "AppleAPFSMedia", "AppleAPFSVolume"] {
+            if let bytes = readDiskBytes(matchingServiceClass: serviceName) {
+                total &+= bytes
+                found = true
+            }
+        }
+        return found ? total : nil
+    }
+
+    private static func readDiskBytes(matchingServiceClass name: String) -> UInt64? {
+        guard let matching = IOServiceMatching(name) else { return nil }
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iterator) == KERN_SUCCESS else {
+            return nil
+        }
+        defer { IOObjectRelease(iterator) }
+
+        var total: UInt64 = 0
+        var found = false
+        var service = IOIteratorNext(iterator)
+        while service != 0 {
+            if let stats = registryStatistics(of: service), let bytes = diskBytes(from: stats) {
+                total &+= bytes
+                found = true
+            }
+            IOObjectRelease(service)
+            service = IOIteratorNext(iterator)
+        }
+        return found ? total : nil
+    }
+
+    private static func registryStatistics(of service: io_registry_entry_t) -> [String: Any]? {
+        var props: Unmanaged<CFMutableDictionary>?
+        guard IORegistryEntryCreateCFProperties(service, &props, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+              let dict = props?.takeRetainedValue() as? [String: Any] else { return nil }
+        return dict["Statistics"] as? [String: Any]
+    }
+
+    private static func diskBytes(from stats: [String: Any]) -> UInt64? {
+        let readKeys = ["Bytes (Read)", "Bytes read from block device", "Bytes read by user"]
+        let writeKeys = ["Bytes (Write)", "Bytes written to block device", "Bytes written by user"]
+        var found = false
+        var total: UInt64 = 0
+        for key in readKeys + writeKeys {
+            if let number = stats[key] as? NSNumber {
+                total &+= number.uint64Value
+                found = true
+            }
+        }
+        return found ? total : nil
     }
 }

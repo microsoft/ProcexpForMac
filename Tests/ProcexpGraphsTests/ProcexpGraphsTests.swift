@@ -13,6 +13,7 @@ struct ProcexpGraphsTests {
         let stats = await provider.stats()
         #expect(stats.memoryTotal > 0)
         #expect(!stats.perCoreCPUPercent.isEmpty)
+        #expect(stats.diskBytesPerSec >= 0)
         for core in stats.perCoreCPUPercent { #expect(core >= 0 && core <= 100) }
     }
 
