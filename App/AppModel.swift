@@ -346,8 +346,8 @@ final class AppModel {
     }
 
     private static func normalizedLowerPaneColumns<C: LowerPaneColumn>(_ columns: [C], defaultColumns: [C]) -> [C] {
-        var seen = Set<C>()
-        var normalized: [C] = []
+        var seen = Set(C.requiredColumns)
+        var normalized = C.requiredColumns
         for column in columns where seen.insert(column).inserted {
             normalized.append(column)
         }

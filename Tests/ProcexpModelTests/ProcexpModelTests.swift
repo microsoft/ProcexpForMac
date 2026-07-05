@@ -142,6 +142,9 @@ struct ProcexpModelTests {
     func lowerPaneColumnDefaults() {
         #expect(ModuleColumn.defaultColumns == [.name, .description, .company, .path])
         #expect(HandleColumn.defaultColumns == [.kind, .name, .fd])
+        #expect(ModuleColumn.requiredColumns == [.name])
+        #expect(HandleColumn.requiredColumns == [.kind, .name, .fd])
+        #expect(ThreadColumn.requiredColumns == [.tid])
         #expect(ThreadColumn.defaultColumns == [
             .state, .tid, .userTime, .kernelTime, .cpu, .cpuTime,
             .startAddress, .basePriority, .currentPriority,
@@ -160,6 +163,10 @@ struct ProcexpModelTests {
 
     @Test("Lower-pane flag formatters include names and raw values")
     func lowerPaneFlagFormatters() {
+        #expect(FileDescriptorFlagFormatter.access(0) == "Read (0x0)")
+        #expect(FileDescriptorFlagFormatter.access(1) == "Write (0x1)")
+        #expect(FileDescriptorFlagFormatter.access(2) == "Read/Write (0x2)")
+        #expect(FileDescriptorFlagFormatter.access(nil) == "")
         #expect(FileDescriptorFlagFormatter.status(0x6) == "Close-on-exec, Guarded (0x6)")
         #expect(FileDescriptorFlagFormatter.status(nil) == "")
         #expect(FileDescriptorFlagFormatter.guardFlags(0x3) == "Close, Dup (0x3)")

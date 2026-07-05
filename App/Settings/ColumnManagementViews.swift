@@ -310,6 +310,7 @@ struct LowerPaneColumnSelectionEditor<C: LowerPaneColumn>: View {
                         .foregroundStyle(selectedRows.contains(column.rawValue) ? Color.white : Color.primary)
                 }
                 .toggleStyle(.checkbox)
+                .disabled(C.requiredColumns.contains(column))
                 .tag(column.rawValue)
             }
         }
@@ -324,6 +325,7 @@ struct LowerPaneColumnSelectionEditor<C: LowerPaneColumn>: View {
                     guard !current.contains(column) else { return }
                     current.append(column)
                 } else {
+                    guard !C.requiredColumns.contains(column) else { return }
                     current.removeAll { $0 == column }
                 }
                 columns = normalized(current)
@@ -334,9 +336,12 @@ struct LowerPaneColumnSelectionEditor<C: LowerPaneColumn>: View {
     private func normalized(_ columns: [C]) -> [C] {
         var seen = Set<C>()
         var result: [C] = []
+        for column in C.requiredColumns where seen.insert(column).inserted {
+            result.append(column)
+        }
         for column in columns where seen.insert(column).inserted {
             result.append(column)
         }
-        return result
+        return result.isEmpty ? C.requiredColumns : result
     }
 }

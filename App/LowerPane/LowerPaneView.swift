@@ -868,7 +868,7 @@ private struct ModuleRowsTable: NSViewRepresentable {
             cell.addSubview(textField)
             cell.textField = textField
             NSLayoutConstraint.activate([
-                textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
+                textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
                 textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
                 textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
             ])
@@ -1118,7 +1118,7 @@ private struct FileDescriptorRowsTable: NSViewRepresentable {
             cell.addSubview(textField)
             cell.textField = textField
             NSLayoutConstraint.activate([
-                textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
+                textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
                 textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
                 textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
             ])
@@ -1138,7 +1138,7 @@ private struct FileDescriptorRowsTable: NSViewRepresentable {
             switch id {
             case "kind": return row.kind.rawValue
             case "name": return row.name
-            case "access": return accessText(row.openFlags)
+            case "access": return FileDescriptorFlagFormatter.access(row.openFlags)
             case "offset": return row.offset.map(String.init) ?? ""
             case "size": return row.vnode.map { ByteFormat.bytes(UInt64(max(0, $0.size))) } ?? ""
             case "status": return FileDescriptorFlagFormatter.status(row.statusFlags)
@@ -1153,16 +1153,6 @@ private struct FileDescriptorRowsTable: NSViewRepresentable {
             case "sendBuffer": return row.socket?.sendBuffer.map { ByteFormat.bytes(UInt64($0.currentBytes)) } ?? ""
             case "fd": return String(row.id)
             default: return ""
-            }
-        }
-
-        private func accessText(_ flags: UInt32?) -> String {
-            guard let flags else { return "" }
-            switch Int32(flags) & O_ACCMODE {
-            case O_RDONLY: return "Read"
-            case O_WRONLY: return "Write"
-            case O_RDWR: return "Read/Write"
-            default: return String(format: "0x%X", flags)
             }
         }
 
@@ -1379,7 +1369,7 @@ private struct ThreadRowsTable: NSViewRepresentable {
             cell.addSubview(textField)
             cell.textField = textField
             NSLayoutConstraint.activate([
-                textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 4),
+                textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
                 textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
                 textField.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
             ])

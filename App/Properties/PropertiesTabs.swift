@@ -340,18 +340,15 @@ struct PerformanceTab: View {
     @Bindable var detail: PropertiesDetail
 
     var body: some View {
-        Grid(alignment: .topLeading, horizontalSpacing: 12, verticalSpacing: 8) {
-            GridRow {
+        HStack(alignment: .top, spacing: 20) {
+            VStack(alignment: .leading, spacing: 8) {
                 cpuSection
-                virtualMemorySection
-            }
-            GridRow {
                 physicalMemorySection
-                ioSection
-            }
-            GridRow {
                 handlesThreadsSection
-                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+            }
+            VStack(alignment: .leading, spacing: 8) {
+                virtualMemorySection
+                ioSection
             }
         }
         .padding(8)

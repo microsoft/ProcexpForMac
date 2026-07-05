@@ -9,6 +9,18 @@
 import Foundation
 
 public enum FileDescriptorFlagFormatter {
+    public static func access(_ flags: UInt32?) -> String {
+        guard let flags else { return "" }
+        let name: String
+        switch flags & 0x3 {
+        case 0: name = "Read"
+        case 1: name = "Write"
+        case 2: name = "Read/Write"
+        default: return String(format: "0x%X", flags)
+        }
+        return "\(name) (\(String(format: "0x%X", flags)))"
+    }
+
     public static func status(_ flags: UInt32?) -> String {
         namedFlags(flags, definitions: [
             (1, "Shared"),
@@ -54,6 +66,7 @@ public protocol LowerPaneColumn: CaseIterable, Codable, Hashable, Sendable, RawR
     var title: String { get }
     var defaultWidth: Double { get }
     var isRightAligned: Bool { get }
+    static var requiredColumns: [Self] { get }
 }
 
 public enum ModuleColumn: String, LowerPaneColumn {
@@ -102,6 +115,7 @@ public enum ModuleColumn: String, LowerPaneColumn {
     /// Mirrors Windows Process Explorer's DLL lower-pane defaults:
     /// Name, Description, Company Name, Path.
     public static let defaultColumns: [ModuleColumn] = [.name, .description, .company, .path]
+    public static let requiredColumns: [ModuleColumn] = [.name]
 }
 
 public enum HandleColumn: String, LowerPaneColumn {
@@ -169,6 +183,7 @@ public enum HandleColumn: String, LowerPaneColumn {
     /// Mirrors Windows Process Explorer's handle lower-pane defaults, with the
     /// numeric fd shown as the macOS handle value equivalent.
     public static let defaultColumns: [HandleColumn] = [.kind, .name, .fd]
+    public static let requiredColumns: [HandleColumn] = [.kind, .name, .fd]
 }
 
 public enum ThreadColumn: String, LowerPaneColumn {
@@ -242,6 +257,7 @@ public enum ThreadColumn: String, LowerPaneColumn {
         .state, .tid, .userTime, .kernelTime, .cpu, .cpuTime,
         .startAddress, .basePriority, .currentPriority
     ]
+    public static let requiredColumns: [ThreadColumn] = [.tid]
 }
 
 public struct ThreadInfo: Identifiable, Sendable, Hashable {
