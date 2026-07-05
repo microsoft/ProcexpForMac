@@ -111,8 +111,6 @@ struct ProcessOutlineView: NSViewRepresentable {
         private var cachedProcessContentWidth = defaultProcessPaneWidth
         private var maxVisiblePrivateBytes: UInt64 = 0
         private var maxVisibleWorkingSet: UInt64 = 0
-        private var commandLineCache: [ProcessID: String] = [:]
-        private var commandLineInFlight: Set<ProcessID> = []
         private var suppressScrollSync = false
         private var scrollObservers: [NSObjectProtocol] = []
         private var activeResize: ColumnResizeState?
@@ -1141,32 +1139,27 @@ struct ProcessOutlineView: NSViewRepresentable {
                 return cellTooltip
             }
             guard kind == .processRows else { return nil }
-            var sections: [String] = []
+            // Plain lines, no labels or indentation: name, then description,
+            // company, and version when available.
+            var lines: [String] = [record.name]
             if let description = record.displayDescription, !description.isEmpty {
-                sections.append("Description:\n    \(description)")
+                lines.append(description)
             }
             if let company = record.companyName, !company.isEmpty {
-                sections.append("Company:\n    \(company)")
+                lines.append(company)
             }
             if let version = record.version, !version.isEmpty {
-                sections.append("Version:\n    \(version)")
+                lines.append(version)
             }
-            let path = record.executablePath ?? ""
-            sections.append("Path:\n    \(path.isEmpty ? "—" : path)")
-            scheduleCommandLineLookup(for: record.id)
-            if let commandLine = record.commandLine ?? commandLineCache[record.id], !commandLine.isEmpty {
-                sections.append("Command Line:\n    \(commandLine)")
-            }
-            return sections.joined(separator: "\n")
+            return lines.joined(separator: "\n")
         }
 
         private func clippedCellTooltip(in kind: ProcessListSurfaceKind, at point: NSPoint, rowIndex: Int, record: ProcessRecord) -> String? {
             switch kind {
             case .processRows:
-                let row = visibleRows[rowIndex]
-                let rect = processTextRect(for: row, rowIndex: rowIndex)
-                guard rect.contains(point) else { return nil }
-                return clippedTooltipText(record.name, in: rect, rightAligned: false)
+                // Process rows always show the name/description/company/version
+                // tooltip built by `tooltipText`, so no clipped-cell tooltip here.
+                return nil
             case .metricsRows:
                 guard let column = metricColumn(at: point.x),
                       let rect = metricCellRect(for: column, rowIndex: rowIndex)?.insetBy(dx: 4, dy: 1),
@@ -1184,21 +1177,6 @@ struct ProcessOutlineView: NSViewRepresentable {
                 : .systemFont(ofSize: NSFont.smallSystemFontSize)
             let textWidth = ceil((text as NSString).size(withAttributes: [.font: font]).width) + 4
             return textWidth > rect.width + 0.5 ? text : nil
-        }
-
-        private func scheduleCommandLineLookup(for id: ProcessID) {
-            guard commandLineCache[id] == nil, !commandLineInFlight.contains(id) else { return }
-            commandLineInFlight.insert(id)
-            let data = model.data
-            Task { @MainActor in
-                let commandLine = (try? await data.commandLine(of: id)) ?? ""
-                if commandLine.isEmpty {
-                    self.commandLineCache.removeValue(forKey: id)
-                } else {
-                    self.commandLineCache[id] = commandLine
-                }
-                self.commandLineInFlight.remove(id)
-            }
         }
 
         private func isExpandable(_ pid: ProcessID) -> Bool {
