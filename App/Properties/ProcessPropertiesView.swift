@@ -187,15 +187,15 @@ struct ProcessPropertiesView: View {
     @ViewBuilder
     private func tabContent(record: ProcessRecord) -> some View {
         switch selectedTab {
-        case .image:            ImageTab(pid: pid, record: record, detail: detail)
-        case .signature:        SignatureTab(record: record, detail: detail)
-        case .performance:      PerformanceTab(record: record, detail: detail)
-        case .performanceGraph: PerformanceGraphTab(detail: detail)
-        case .threads:          ThreadsTab(record: record, detail: detail)
-        case .tcpip:            TCPIPTab(detail: detail)
-        case .security:         SecurityTab(record: record, detail: detail)
-        case .environment:      EnvironmentTab(detail: detail)
-        case .strings:          StringsTab(detail: detail)
+        case .image:            ImageTab(pid: pid, record: record, detail: detail).padding(8)
+        case .signature:        SignatureTab(record: record, detail: detail).padding(8)
+        case .performance:      PerformanceTab(record: record, detail: detail).padding(8)
+        case .performanceGraph: PerformanceGraphTab(detail: detail).padding(8)
+        case .threads:          ThreadsTab(record: record, detail: detail).padding(8)
+        case .tcpip:            TCPIPTab(detail: detail).padding(8)
+        case .security:         SecurityTab(record: record, detail: detail).padding(8)
+        case .environment:      EnvironmentTab(detail: detail).padding(8)
+        case .strings:          StringsTab(detail: detail).padding(8)
         }
     }
 }

@@ -205,7 +205,6 @@ struct ImageTab: View {
             Spacer(minLength: 0)
             buttonRow
         }
-        .padding(8)
     }
 
     // MARK: Header
@@ -327,7 +326,6 @@ struct SignatureTab: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(8)
     }
 }
 
@@ -365,7 +363,6 @@ struct PerformanceTab: View {
                 ioSection
             }
         }
-        .padding(8)
     }
 
     private var cpuSection: some View {
@@ -469,7 +466,6 @@ struct PerformanceGraphTab: View {
                 readout: "\(ByteFormat.bytes(UInt64(detail.ioRing.latest ?? 0)))/s"
             )
         }
-        .padding(8)
     }
 }
 
@@ -1007,16 +1003,20 @@ struct StringsTab: View {
                 Text("Image strings (memory strings require the privileged helper).")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                List(selection: $selectedRows) {
-                    ForEach(Array(filtered.enumerated()), id: \.offset) { offset, line in
-                        tooltipText(line, selected: selectedRows.contains(offset))
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .lineLimit(1)
-                        .tag(offset)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2) {
+                        ForEach(Array(filtered.enumerated()), id: \.offset) { offset, line in
+                            tooltipText(line, selected: selectedRows.contains(offset))
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                                .tag(offset)
+                        }
                     }
+                    .padding(.vertical, 2)
                 }
-                .listStyle(.plain)
             }
         }
     }
@@ -1049,13 +1049,12 @@ struct SecurityTab: View {
     @Bindable var detail: PropertiesDetail
 
     var body: some View {
-        ScrollView {
+        ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 10) {
                 identitySection
                 entitlementsSection
                 sandboxRuntimeSection
             }
-            .padding(8)
         }
     }
 
