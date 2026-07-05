@@ -179,11 +179,14 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
         // Descriptor count (handle-equivalent).
         let fdCount = Libproc.fdCount(pid)
 
-        // Disk I/O + phys footprint — own processes only; ignore failures.
+        // Disk I/O + phys footprint. `proc_pid_rusage` succeeds for most
+        // processes without elevation (and for all when running as root), so
+        // try it unconditionally — this is what makes Private Bytes (phys
+        // footprint) differ from Working Set (resident size). Ignore failures.
         var diskRead: UInt64? = nil
         var diskWritten: UInt64? = nil
         var physFootprint: UInt64? = nil
-        if uid == myUID, let usage = Libproc.rusage(pid) {
+        if let usage = Libproc.rusage(pid) {
             diskRead = usage.diskRead
             diskWritten = usage.diskWritten
             physFootprint = usage.physFootprint
@@ -272,6 +275,11 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
             task = Libproc.taskDetails(ti)
         }
 
+        var physFootprint: UInt64? = nil
+        if let usage = Libproc.rusage(pid) {
+            physFootprint = usage.physFootprint
+        }
+
         var flags: ProcessFlags = []
         if uid == myUID { flags.insert(.ownProcess) }
         if Self.isSystemDaemon(ppid: ppid, uid: uid) { flags.insert(.service) }
@@ -309,6 +317,7 @@ public final class LibprocDataProvider: ProcessDataProviding, Sendable {
             contextSwitches: task.contextSwitches,
             residentSize: task.residentSize,
             virtualSize: task.virtualSize,
+            physFootprint: physFootprint,
             pageFaults: task.pageFaults,
             pageIns: task.pageIns,
             copyOnWriteFaults: task.copyOnWriteFaults,
