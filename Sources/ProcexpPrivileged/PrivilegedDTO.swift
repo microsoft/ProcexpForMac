@@ -239,6 +239,8 @@ public struct ThreadInfoDTO: Codable, Sendable {
     public var name: String
     public var cpuPercent: Double
     public var cpuTime: UInt64
+    public var userTime: UInt64
+    public var kernelTime: UInt64
     public var state: String
     public var startAddress: UInt64?
     public var startSymbol: String?
@@ -255,6 +257,8 @@ public struct ThreadInfoDTO: Codable, Sendable {
         name = t.name
         cpuPercent = t.cpuPercent
         cpuTime = t.cpuTime
+        userTime = t.userTime
+        kernelTime = t.kernelTime
         state = t.state
         startAddress = t.startAddress
         startSymbol = t.startSymbol
@@ -268,7 +272,8 @@ public struct ThreadInfoDTO: Codable, Sendable {
     }
 
     public init(
-        id: UInt64, name: String = "", cpuPercent: Double, cpuTime: UInt64, state: String,
+        id: UInt64, name: String = "", cpuPercent: Double, cpuTime: UInt64,
+        userTime: UInt64 = 0, kernelTime: UInt64 = 0, state: String,
         startAddress: UInt64? = nil, startSymbol: String? = nil,
         currentPriority: Int32 = 0, basePriority: Int32,
         maxPriority: Int32 = 0, schedulerPolicy: Int32 = 0,
@@ -279,6 +284,8 @@ public struct ThreadInfoDTO: Codable, Sendable {
         self.name = name
         self.cpuPercent = cpuPercent
         self.cpuTime = cpuTime
+        self.userTime = userTime
+        self.kernelTime = kernelTime
         self.state = state
         self.startAddress = startAddress
         self.startSymbol = startSymbol
@@ -297,6 +304,8 @@ public struct ThreadInfoDTO: Codable, Sendable {
             name: name,
             cpuPercent: cpuPercent,
             cpuTime: cpuTime,
+            userTime: userTime,
+            kernelTime: kernelTime,
             state: state,
             startAddress: startAddress,
             startSymbol: startSymbol,

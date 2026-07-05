@@ -61,7 +61,7 @@ struct ProcessPropertiesView: View {
                     tabContent(record: record)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 }
-                .frame(minWidth: 640, idealWidth: 680, minHeight: 540, idealHeight: 560)
+                .frame(minWidth: 640, idealWidth: 680, minHeight: 680, idealHeight: 700)
                 .navigationTitle("\(record.name) (PID \(pid.pid)) Properties")
             } else {
                 ContentUnavailableView(

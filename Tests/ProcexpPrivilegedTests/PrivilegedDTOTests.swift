@@ -55,6 +55,8 @@ struct PrivilegedDTOTests {
             name: "worker",
             cpuPercent: 1.5,
             cpuTime: 99,
+            userTime: 44,
+            kernelTime: 55,
             state: "running",
             currentPriority: 31,
             basePriority: 30,
@@ -68,6 +70,8 @@ struct PrivilegedDTOTests {
         let roundTrip = ThreadInfoDTO(thread).model
 
         #expect(roundTrip.name == "worker")
+        #expect(roundTrip.userTime == 44)
+        #expect(roundTrip.kernelTime == 55)
         #expect(roundTrip.currentPriority == 31)
         #expect(roundTrip.basePriority == 30)
         #expect(roundTrip.maxPriority == 63)

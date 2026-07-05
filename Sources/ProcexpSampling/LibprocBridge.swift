@@ -549,6 +549,8 @@ enum Libproc {
                     name: fixedChars(info.pth_name),
                     cpuPercent: Double(info.pth_cpu_usage) / Double(TH_USAGE_SCALE) * 100.0,
                     cpuTime: info.pth_user_time &+ info.pth_system_time,
+                    userTime: info.pth_user_time,
+                    kernelTime: info.pth_system_time,
                     state: threadStateString(info.pth_run_state),
                     startAddress: nil,
                     startSymbol: nil,

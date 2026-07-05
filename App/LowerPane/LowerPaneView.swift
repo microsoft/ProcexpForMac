@@ -1399,8 +1399,8 @@ private struct ThreadRowsTable: NSViewRepresentable {
             case "sleepTime": return row.sleepTimeSeconds > 0 ? "\(row.sleepTimeSeconds)s" : ""
             case "flags": return ThreadFlagFormatter.flags(row.flags)
             case "dispatchQueue": return hexString(row.dispatchQueueAddress)
-            case "userTime": return ""
-            case "kernelTime": return ""
+            case "userTime": return formatCPUTime(row.userTime)
+            case "kernelTime": return formatCPUTime(row.kernelTime)
             case "startAddress": return row.startSymbol ?? hexString(row.startAddress)
             default: return ""
             }

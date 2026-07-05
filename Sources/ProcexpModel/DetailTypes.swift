@@ -284,6 +284,8 @@ public struct ThreadInfo: Identifiable, Sendable, Hashable {
     public var name: String
     public var cpuPercent: Double
     public var cpuTime: UInt64       // nanoseconds
+    public var userTime: UInt64      // nanoseconds
+    public var kernelTime: UInt64    // nanoseconds
     public var state: String
     public var startAddress: UInt64?
     public var startSymbol: String?
@@ -300,6 +302,8 @@ public struct ThreadInfo: Identifiable, Sendable, Hashable {
         name: String = "",
         cpuPercent: Double = 0,
         cpuTime: UInt64 = 0,
+        userTime: UInt64 = 0,
+        kernelTime: UInt64 = 0,
         state: String = "",
         startAddress: UInt64? = nil,
         startSymbol: String? = nil,
@@ -315,6 +319,8 @@ public struct ThreadInfo: Identifiable, Sendable, Hashable {
         self.name = name
         self.cpuPercent = cpuPercent
         self.cpuTime = cpuTime
+        self.userTime = userTime
+        self.kernelTime = kernelTime
         self.state = state
         self.startAddress = startAddress
         self.startSymbol = startSymbol

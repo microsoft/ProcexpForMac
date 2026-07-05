@@ -26,17 +26,15 @@ struct ProcexpSamplingTests {
     }
 
     @Test("Reads public thread detail for the current process")
-    func readsThreadDetailForCurrentProcess() async throws {
-        let provider = LibprocDataProvider()
-        let snap = await provider.snapshot()
-        let me = try #require(snap.processes.values.first { $0.id.pid == getpid() })
-
-        let threads = try await provider.threads(of: me.id)
+    func readsThreadDetailForCurrentProcess() throws {
+        let taskInfo = try #require(Libproc.taskInfo(getpid()))
+        let threads = Libproc.threads(getpid(), expectedCount: Int(taskInfo.pti_threadnum))
 
         #expect(!threads.isEmpty)
         #expect(threads.contains { !$0.state.isEmpty && $0.state != "unknown" })
         #expect(threads.contains { $0.basePriority > 0 })
         #expect(threads.contains { $0.currentPriority > 0 })
+        #expect(threads.allSatisfy { $0.cpuTime == $0.userTime + $0.kernelTime })
         #expect(threads.allSatisfy { $0.sleepTimeSeconds >= 0 })
         #expect(threads.allSatisfy { $0.dispatchQueueAddress == nil })
     }

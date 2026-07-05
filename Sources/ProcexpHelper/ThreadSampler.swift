@@ -76,7 +76,9 @@ enum ThreadSampler {
             guard bkr == KERN_SUCCESS else { continue }
 
             var cpuPercent = Double(basic.cpu_usage) / usageScale * 100.0
-            var cpuTime = time(basic.user_time) &+ time(basic.system_time)
+            var userTime = time(basic.user_time)
+            var kernelTime = time(basic.system_time)
+            var cpuTime = userTime &+ kernelTime
             var runState = basic.run_state
             var name = ""
             var currentPriority: Int32 = 0
@@ -95,7 +97,9 @@ enum ThreadSampler {
             }
             if ekr == KERN_SUCCESS {
                 cpuPercent = Double(extended.pth_cpu_usage) / usageScale * 100.0
-                cpuTime = extended.pth_user_time &+ extended.pth_system_time
+                userTime = extended.pth_user_time
+                kernelTime = extended.pth_system_time
+                cpuTime = userTime &+ kernelTime
                 runState = extended.pth_run_state
                 name = fixedChars(extended.pth_name)
                 currentPriority = extended.pth_curpri
@@ -125,6 +129,8 @@ enum ThreadSampler {
                     name: name,
                     cpuPercent: cpuPercent,
                     cpuTime: cpuTime,
+                    userTime: userTime,
+                    kernelTime: kernelTime,
                     state: stateString(runState),
                     currentPriority: currentPriority,
                     basePriority: basePriority
