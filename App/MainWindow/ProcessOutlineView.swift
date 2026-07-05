@@ -111,6 +111,8 @@ struct ProcessOutlineView: NSViewRepresentable {
         private var cachedProcessContentWidth = defaultProcessPaneWidth
         private var maxVisiblePrivateBytes: UInt64 = 0
         private var maxVisibleWorkingSet: UInt64 = 0
+        private var commandLineCache: [ProcessID: String] = [:]
+        private var commandLineInFlight: Set<ProcessID> = []
         private var suppressScrollSync = false
         private var scrollObservers: [NSObjectProtocol] = []
         private var activeResize: ColumnResizeState?
@@ -1139,8 +1141,8 @@ struct ProcessOutlineView: NSViewRepresentable {
                 return cellTooltip
             }
             guard kind == .processRows else { return nil }
-            // Plain lines, no labels or indentation: name, then description,
-            // company, and version when available.
+            // Plain lines (no labels/indent): name, description, company, and
+            // version when available, followed by labelled Path and Command Line.
             var lines: [String] = [record.name]
             if let description = record.displayDescription, !description.isEmpty {
                 lines.append(description)
@@ -1150,6 +1152,12 @@ struct ProcessOutlineView: NSViewRepresentable {
             }
             if let version = record.version, !version.isEmpty {
                 lines.append(version)
+            }
+            let path = record.executablePath ?? ""
+            lines.append("Path:\n    \(path.isEmpty ? "—" : path)")
+            scheduleCommandLineLookup(for: record.id)
+            if let commandLine = record.commandLine ?? commandLineCache[record.id], !commandLine.isEmpty {
+                lines.append("Command Line:\n    \(commandLine)")
             }
             return lines.joined(separator: "\n")
         }
@@ -1177,6 +1185,21 @@ struct ProcessOutlineView: NSViewRepresentable {
                 : .systemFont(ofSize: NSFont.smallSystemFontSize)
             let textWidth = ceil((text as NSString).size(withAttributes: [.font: font]).width) + 4
             return textWidth > rect.width + 0.5 ? text : nil
+        }
+
+        private func scheduleCommandLineLookup(for id: ProcessID) {
+            guard commandLineCache[id] == nil, !commandLineInFlight.contains(id) else { return }
+            commandLineInFlight.insert(id)
+            let data = model.data
+            Task { @MainActor in
+                let commandLine = (try? await data.commandLine(of: id)) ?? ""
+                if commandLine.isEmpty {
+                    self.commandLineCache.removeValue(forKey: id)
+                } else {
+                    self.commandLineCache[id] = commandLine
+                }
+                self.commandLineInFlight.remove(id)
+            }
         }
 
         private func isExpandable(_ pid: ProcessID) -> Bool {
