@@ -31,12 +31,10 @@ struct ProcexpApp: App {
                 AboutMenuCommand()
             }
             // W2 — install the privileged root helper (mirrors Procexp's
-            // "Run as Administrator"). Reports success/failure via an alert.
+            // "Run as Administrator"). Reports success/failure via an alert,
+            // and disables itself once the helper is installed.
             CommandGroup(after: .appSettings) {
-                Button("Install Privileged Helper…") {
-                    let model = model
-                    Task { await runHelperInstall(model) }
-                }
+                InstallHelperMenuCommand(model: model)
             }
             // W4 — open the System Information window (⌘I).
             CommandGroup(after: .toolbar) {
@@ -130,6 +128,28 @@ private struct SystemInfoMenuCommand: View {    @Environment(\.openWindow) priva
     }
 }
 
+/// Menu command to install the privileged root helper. Disabled (greyed out)
+/// once the helper is installed, since there is nothing more to do. A companion
+/// "Uninstall…" item (enabled only when installed) unregisters it — no sudo, so
+/// it is handy for re-testing the first-install flow.
+private struct InstallHelperMenuCommand: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        Button(model.helperInstalled ? "Privileged Helper Installed" : "Install Privileged Helper…") {
+            let model = model
+            Task { await runHelperInstall(model) }
+        }
+        .disabled(model.helperInstalled)
+
+        Button("Uninstall Privileged Helper…") {
+            let model = model
+            Task { await runHelperUninstall(model) }
+        }
+        .disabled(!model.helperInstalled)
+    }
+}
+
 
 /// Shared identifier for the Process Properties `WindowGroup`.
 enum PropertiesWindow {
@@ -148,6 +168,18 @@ private func runHelperInstall(_ model: AppModel) async {
     let result = await model.installPrivilegedHelper()
     let alert = NSAlert()
     alert.messageText = result.ok ? "Privileged Helper Installed" : "Could Not Install Helper"
+    alert.informativeText = result.message
+    alert.alertStyle = result.ok ? .informational : .warning
+    alert.addButton(withTitle: "OK")
+    alert.runModal()
+}
+
+/// W2 — unregister the privileged helper and report the outcome.
+@MainActor
+private func runHelperUninstall(_ model: AppModel) async {
+    let result = await model.uninstallPrivilegedHelper()
+    let alert = NSAlert()
+    alert.messageText = result.ok ? "Privileged Helper Removed" : "Could Not Remove Helper"
     alert.informativeText = result.message
     alert.alertStyle = result.ok ? .informational : .warning
     alert.addButton(withTitle: "OK")

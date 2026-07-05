@@ -193,6 +193,11 @@ final class AppModel {
     /// into `actions` so control operations can escalate.
     private(set) var privileged: PrivilegedDataProvider?
 
+    /// Whether the privileged helper is installed/enabled. Observable so menu
+    /// items (e.g. "Install Privileged Helper…") can disable themselves once the
+    /// helper is present.
+    private(set) var helperInstalled: Bool = false
+
     /// The always-available unprivileged provider, kept for fallback.
     private let libproc: LibprocDataProvider
     private let gpuStats = GPUStatsProvider()
@@ -240,10 +245,12 @@ final class AppModel {
             self.privileged = priv
             self.data = priv
             self.actions = ProcessActions(privileged: priv)
+            self.helperInstalled = true
         } else {
             self.privileged = nil
             self.data = libproc
             self.actions = ProcessActions(privileged: nil)
+            self.helperInstalled = false
         }
 
         // W11 — restore persisted preferences, then start tracking changes.
@@ -283,8 +290,28 @@ final class AppModel {
         self.privileged = priv
         self.data = priv
         self.actions = ProcessActions(privileged: priv)
+        self.helperInstalled = true
         await start()
         return (true, "The privileged helper is installed and active. Accurate per-thread CPU and cross-user detail are now available.")
+    }
+
+    /// W2 — unregister the privileged helper via `SMAppService` (no sudo needed;
+    /// the app manages its own daemon registration) and revert to the
+    /// unprivileged provider. Useful for testing the first-install flow.
+    func uninstallPrivilegedHelper() async -> (ok: Bool, message: String) {
+        do {
+            try await PrivilegedDataProvider.uninstallHelper()
+        } catch {
+            return (false, "The privileged helper could not be unregistered.")
+        }
+
+        // Revert to the always-available unprivileged path.
+        self.privileged = nil
+        self.data = libproc
+        self.actions = ProcessActions(privileged: nil)
+        self.helperInstalled = false
+        await start()
+        return (true, "The privileged helper has been removed. The app is now running unprivileged.")
     }
 
 
