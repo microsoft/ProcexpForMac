@@ -141,7 +141,7 @@ struct ProcexpModelTests {
     @Test("Lower-pane column defaults mirror Windows visible defaults")
     func lowerPaneColumnDefaults() {
         #expect(ModuleColumn.defaultColumns == [.name, .description, .company, .path])
-        #expect(HandleColumn.defaultColumns == [.kind, .name])
+        #expect(HandleColumn.defaultColumns == [.kind, .name, .fd])
         #expect(ThreadColumn.defaultColumns == [
             .state, .tid, .userTime, .kernelTime, .cpu, .cpuTime,
             .startAddress, .basePriority, .currentPriority,

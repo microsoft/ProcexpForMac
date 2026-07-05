@@ -124,9 +124,9 @@ public enum HandleColumn: String, LowerPaneColumn {
         }
     }
 
-    /// Mirrors Windows Process Explorer's handle lower-pane defaults:
-    /// Type, Name.
-    public static let defaultColumns: [HandleColumn] = [.kind, .name]
+    /// Mirrors Windows Process Explorer's handle lower-pane defaults, with the
+    /// numeric fd shown as the macOS handle value equivalent.
+    public static let defaultColumns: [HandleColumn] = [.kind, .name, .fd]
 }
 
 public enum ThreadColumn: String, LowerPaneColumn {
