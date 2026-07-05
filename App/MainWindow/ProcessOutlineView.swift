@@ -1144,7 +1144,9 @@ struct ProcessOutlineView: NSViewRepresentable {
             // Plain lines (no labels/indent): name, description, company, and
             // version when available, followed by labelled Path and Command Line.
             var lines: [String] = [record.name]
-            if let description = record.displayDescription, !description.isEmpty {
+            // Skip the description when it just repeats the company name.
+            if let description = record.displayDescription, !description.isEmpty,
+               description.caseInsensitiveCompare(record.companyName ?? "") != .orderedSame {
                 lines.append(description)
             }
             if let company = record.companyName, !company.isEmpty {
