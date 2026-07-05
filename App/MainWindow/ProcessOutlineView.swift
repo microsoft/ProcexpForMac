@@ -1141,9 +1141,19 @@ struct ProcessOutlineView: NSViewRepresentable {
                 return cellTooltip
             }
             guard kind == .processRows else { return nil }
+            var sections: [String] = []
+            if let description = record.displayDescription, !description.isEmpty {
+                sections.append("Description:\n    \(description)")
+            }
+            if let company = record.companyName, !company.isEmpty {
+                sections.append("Company:\n    \(company)")
+            }
+            if let version = record.version, !version.isEmpty {
+                sections.append("Version:\n    \(version)")
+            }
             let path = record.executablePath ?? ""
+            sections.append("Path:\n    \(path.isEmpty ? "—" : path)")
             scheduleCommandLineLookup(for: record.id)
-            var sections = ["Path:\n    \(path.isEmpty ? "—" : path)"]
             if let commandLine = record.commandLine ?? commandLineCache[record.id], !commandLine.isEmpty {
                 sections.append("Command Line:\n    \(commandLine)")
             }
