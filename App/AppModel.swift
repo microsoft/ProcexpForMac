@@ -91,7 +91,7 @@ final class AppModel {
     private var normalizingColumns = false
 
     // W5 lower-pane view state (mapped images vs. file descriptors).
-    var showLowerPane: Bool = true
+    var showLowerPane: Bool = true { didSet { persistSettings() } }
     var lowerPaneMode: LowerPaneMode = .modules
     var systemInfoTab: SystemInfoTab = .summary
 

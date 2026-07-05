@@ -29,6 +29,7 @@ enum SettingsStore {
         static let confirmBeforeKill  = "settings.confirmBeforeKill"
         static let verifySignatures   = "settings.verifySignatures"
         static let highlightDuration  = "settings.differenceHighlightDuration"
+        static let showLowerPane      = "settings.showLowerPane"
     }
 
     private static let schemaVersion = 1
@@ -89,6 +90,9 @@ enum SettingsStore {
         if let dur = defaults.object(forKey: Key.highlightDuration) as? Double, dur >= 0 {
             model.differenceHighlightDuration = dur
         }
+        if defaults.object(forKey: Key.showLowerPane) != nil {
+            model.showLowerPane = defaults.bool(forKey: Key.showLowerPane)
+        }
     }
 
     // MARK: - Save
@@ -113,5 +117,6 @@ enum SettingsStore {
         defaults.set(model.confirmBeforeKill, forKey: Key.confirmBeforeKill)
         defaults.set(model.verifySignatures, forKey: Key.verifySignatures)
         defaults.set(model.differenceHighlightDuration, forKey: Key.highlightDuration)
+        defaults.set(model.showLowerPane, forKey: Key.showLowerPane)
     }
 }
