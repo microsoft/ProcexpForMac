@@ -62,6 +62,11 @@ struct ModuleRow: Identifiable, Hashable, Sendable {
     var name: String { module.name }
     var path: String { module.path }
     var signer: String { (signature ?? module.signing)?.signerDescription ?? "" }
+    /// Company from bundle metadata, falling back to the signing identity.
+    var companyDisplay: String {
+        if !company.isEmpty { return company }
+        return (signature ?? module.signing)?.signerCompany ?? ""
+    }
     var loadAddress: UInt64 { module.loadAddress }
     var size: UInt64 { module.size }
 }
@@ -320,7 +325,7 @@ struct LowerPaneView: View {
                 $0.name.localizedCaseInsensitiveContains(filterText)
                     || $0.path.localizedCaseInsensitiveContains(filterText)
                     || $0.description.localizedCaseInsensitiveContains(filterText)
-                    || $0.company.localizedCaseInsensitiveContains(filterText)
+                    || $0.companyDisplay.localizedCaseInsensitiveContains(filterText)
             }
         }
         return base.sorted(using: moduleSort)
@@ -950,7 +955,7 @@ private struct ModuleRowsTable: NSViewRepresentable {
             switch id {
             case "name": return row.name
             case "description": return row.description
-            case "company": return row.company
+            case "company": return row.companyDisplay
             case "version": return row.version
             case "path": return row.path
             case "signer": return row.signer

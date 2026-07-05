@@ -651,13 +651,43 @@ public struct SignatureInfo: Sendable, Codable, Hashable {
         case .unverified: return "(Verifying…)"
         case .verifying:  return "(Verifying…)"
         case .unsigned:   return "(Unsigned)"
-        case .invalid:    return "(Invalid signature)"
+        case .invalid:
+            // Surface the specific Security.framework reason (e.g. "a sealed
+            // resource is missing or invalid") instead of a generic label.
+            if let message = validationErrorMessage, !message.isEmpty {
+                return "(\(message.prefix(1).uppercased() + message.dropFirst()))"
+            }
+            return "(Invalid signature)"
         case .signed:
             if isPlatformBinary { return "Apple (platform)" }
             if let first = authority.first { return first }
             if let team = teamID { return "Team \(team)" }
             return isAdHoc ? "(Ad-hoc signed)" : "(Signed)"
         }
+    }
+
+    /// A best-effort company/organization derived from the code signature, used
+    /// to fill the Company column when the bundle `Info.plist` provides none.
+    /// Apple platform binaries → "Apple"; a Developer ID leaf certificate →
+    /// the organization embedded in its common name.
+    public var signerCompany: String? {
+        guard status == .signed else { return nil }
+        if isPlatformBinary { return "Apple" }
+        guard let leaf = authority.first, !leaf.isEmpty else { return nil }
+        let companyPrefixes = [
+            "Developer ID Application: ",
+            "Developer ID Installer: ",
+            "Apple Distribution: ",
+            "3rd Party Mac Developer Application: ",
+        ]
+        for prefix in companyPrefixes where leaf.hasPrefix(prefix) {
+            var name = String(leaf.dropFirst(prefix.count))
+            if let paren = name.range(of: " (") { name = String(name[..<paren.lowerBound]) }
+            name = name.trimmingCharacters(in: .whitespaces)
+            if !name.isEmpty { return name }
+        }
+        if leaf == "Software Signing" || leaf.hasPrefix("Apple") { return "Apple" }
+        return nil
     }
 
     public var publisherDescription: String? {

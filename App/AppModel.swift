@@ -868,6 +868,11 @@ final class AppModel {
             // Already resolved → merge the cached result.
             if let cached = signatureCache[path] {
                 processes[id]?.signing = cached
+                // Fall back to the signing identity for a missing Company.
+                if (processes[id]?.companyName ?? "").isEmpty,
+                   let signerCompany = cached.signerCompany {
+                    processes[id]?.companyName = signerCompany
+                }
                 continue
             }
 
