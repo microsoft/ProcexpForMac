@@ -11,14 +11,33 @@ import Foundation
 public enum FileDescriptorFlagFormatter {
     public static func access(_ flags: UInt32?) -> String {
         guard let flags else { return "" }
-        let name: String
+        var names: [String]
         switch flags & 0x3 {
-        case 0: name = "Read"
-        case 1: name = "Write"
-        case 2: name = "Read/Write"
+        case 0: names = ["Read"]
+        case 1: names = ["Write"]
+        case 2, 3: names = ["Read/Write"]
         default: return String(format: "0x%X", flags)
         }
-        return "\(name) (\(String(format: "0x%X", flags)))"
+        let definitions: [(UInt32, String)] = [
+            (0x0000_0004, "Non-blocking"),
+            (0x0000_0008, "Append"),
+            (0x0000_0010, "Shared lock"),
+            (0x0000_0020, "Exclusive lock"),
+            (0x0000_0040, "Async"),
+            (0x0000_0100, "No-follow"),
+            (0x0000_0200, "Create"),
+            (0x0000_0400, "Truncate"),
+            (0x0000_0800, "Exclusive create"),
+            (0x0000_8000, "Event-only"),
+            (0x0002_0000, "No controlling TTY"),
+            (0x0010_0000, "Directory"),
+            (0x0020_0000, "Symlink"),
+            (0x0100_0000, "Close-on-exec"),
+            (0x2000_0000, "No-follow-any"),
+            (0x4000_0000, "Execute"),
+        ]
+        names += definitions.compactMap { mask, name in (flags & mask) != 0 ? name : nil }
+        return "\(names.joined(separator: ", ")) (\(String(format: "0x%X", flags)))"
     }
 
     public static func status(_ flags: UInt32?) -> String {
