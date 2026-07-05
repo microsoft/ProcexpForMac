@@ -8,6 +8,7 @@ signal(SIGINT) { _ in exit(0) }
 
 private let duration = parseDuration(arguments: CommandLine.arguments)
 private let remoteTarget = parseRemoteTarget(arguments: CommandLine.arguments)
+private let namedThread = startNamedFixtureThread(duration: duration)
 
 let listenFD = checkedSocket()
 let clientFD = checkedSocket()
@@ -15,6 +16,7 @@ private var remoteConnection: RemoteConnection?
 var acceptedFD: Int32 = -1
 
 defer {
+    _ = pthread_join(namedThread, nil)
     close(listenFD)
     close(clientFD)
     if let remoteConnection { close(remoteConnection.fd) }
@@ -83,6 +85,30 @@ private func checkedSocket() -> Int32 {
     let fd = socket(AF_INET, SOCK_STREAM, 0)
     guard fd >= 0 else { fail("socket failed: \(lastErrno())") }
     return fd
+}
+
+private func startNamedFixtureThread(duration: TimeInterval) -> pthread_t {
+    final class ThreadContext {
+        let duration: TimeInterval
+        init(duration: TimeInterval) { self.duration = duration }
+    }
+
+    let context = Unmanaged.passRetained(ThreadContext(duration: duration))
+    var thread = pthread_t(bitPattern: 0)
+    let result = pthread_create(&thread, nil, { rawContext in
+        let context = Unmanaged<ThreadContext>.fromOpaque(rawContext).takeRetainedValue()
+        pthread_setname_np("ProcexpTcpFixture")
+        let deadline = Date().addingTimeInterval(context.duration)
+        while Date() < deadline {
+            sleep(1)
+        }
+        return nil
+    }, context.toOpaque())
+    guard result == 0, let thread else {
+        context.release()
+        fail("pthread_create failed: \(String(cString: strerror(result)))")
+    }
+    return thread
 }
 
 private struct RemoteTarget {

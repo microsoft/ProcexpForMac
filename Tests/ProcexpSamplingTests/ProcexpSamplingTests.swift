@@ -41,6 +41,36 @@ struct ProcexpSamplingTests {
         #expect(threads.allSatisfy { $0.dispatchQueueAddress == nil })
     }
 
+    @Test("Reads public thread names")
+    func readsPublicThreadNames() throws {
+        final class NamedThreadContext {
+            let ready = DispatchSemaphore(value: 0)
+            let stop = DispatchSemaphore(value: 0)
+        }
+
+        let context = Unmanaged.passRetained(NamedThreadContext())
+        var thread = pthread_t(bitPattern: 0)
+        let result = pthread_create(&thread, nil, { rawContext in
+            let context = Unmanaged<NamedThreadContext>.fromOpaque(rawContext).takeUnretainedValue()
+            pthread_setname_np("ProcexpThreadTest")
+            context.ready.signal()
+            _ = context.stop.wait(timeout: .now() + .seconds(10))
+            return nil
+        }, context.toOpaque())
+        #expect(result == 0)
+        let retainedContext = context.takeRetainedValue()
+        defer {
+            retainedContext.stop.signal()
+            if let thread { pthread_join(thread, nil) }
+        }
+        guard result == 0 else { return }
+        _ = retainedContext.ready.wait(timeout: .now() + .seconds(2))
+
+        let threads = Libproc.threads(getpid(), expectedCount: 16)
+
+        #expect(threads.contains { $0.name == "ProcexpThreadTest" })
+    }
+
     @Test("Samples extended proc taskinfo counters for current process")
     func samplesExtendedTaskInfo() async throws {
         let provider = LibprocDataProvider()
