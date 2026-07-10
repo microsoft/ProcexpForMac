@@ -15,7 +15,7 @@
 #   1. codesign the embedded helper (if present) with the debugger entitlement
 #      + Hardened Runtime.
 #   2. codesign the app with the managed-by-launchd entitlement + Hardened
-#      Runtime (deep, so nested frameworks are covered).
+#      Runtime without replacing the helper's nested signature.
 #   3. codesign the DMG.
 #   4. notarytool submit --wait, then stapler staple the DMG (and the app).
 #
@@ -55,23 +55,19 @@ CODESIGN_COMMON=(--force --timestamp --options runtime --sign "$DEVELOPER_ID_APP
 # ---------------------------------------------------------------------------
 # 1. Sign the embedded privileged helper first (inside-out signing order).
 # ---------------------------------------------------------------------------
-if [[ -f "$HELPER_PATH" ]]; then
-    echo "==> Signing embedded helper: $HELPER_PATH"
-    [[ -f "$HELPER_ENTITLEMENTS" ]] || fail "missing $HELPER_ENTITLEMENTS"
-    codesign "${CODESIGN_COMMON[@]}" \
-        --entitlements "$HELPER_ENTITLEMENTS" \
-        "$HELPER_PATH"
-else
-    echo "==> No embedded helper found (skipping). Expected at:"
-    echo "    $HELPER_PATH"
-fi
+[[ -f "$HELPER_PATH" ]] || fail "embedded helper not found at $HELPER_PATH"
+echo "==> Signing embedded helper: $HELPER_PATH"
+[[ -f "$HELPER_ENTITLEMENTS" ]] || fail "missing $HELPER_ENTITLEMENTS"
+codesign "${CODESIGN_COMMON[@]}" \
+    --entitlements "$HELPER_ENTITLEMENTS" \
+    "$HELPER_PATH"
 
 # ---------------------------------------------------------------------------
-# 2. Sign the app (deep covers nested frameworks / dylibs).
+# 2. Sign the app. Nested code is signed explicitly first; signing-time --deep
+#    can replace nested signatures and their distinct entitlements.
 # ---------------------------------------------------------------------------
 echo "==> Signing app: $APP"
 codesign "${CODESIGN_COMMON[@]}" \
-    --deep \
     --entitlements "$APP_ENTITLEMENTS" \
     "$APP"
 

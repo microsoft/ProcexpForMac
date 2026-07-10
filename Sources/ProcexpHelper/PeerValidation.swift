@@ -6,12 +6,9 @@
 //  A root daemon that hands out `task_for_pid`-level data must not answer just
 //  any client, so each new connection is validated here.
 //
-//  Under the current ad-hoc ("Sign to Run Locally") signature there is no
-//  Team ID / Developer-ID anchor to pin against, so validation is intentionally
-//  *lenient but present*: it obtains the peer's dynamic code object, runs
-//  `SecCodeCheckValidity`, logs the outcome, and — while unsigned — allows the
-//  connection. W13 (Developer-ID signing) tightens this into a hard
-//  `SecRequirement` match (see `Helper/README.md`).
+//  Debug builds accept any peer with an intact signature so local ad-hoc
+//  development remains possible. Release builds additionally require the
+//  official app identifier and Microsoft Developer ID Team ID.
 //
 
 import Foundation
@@ -19,6 +16,8 @@ import Security
 import os
 
 enum PeerValidation {
+
+    private static let officialAppIdentifier = "com.sysinternals.procexpmac"
 
     private static let log = Logger(
         subsystem: "com.sysinternals.procexpmac.helper",
@@ -39,30 +38,72 @@ enum PeerValidation {
             nil, attributes as CFDictionary, SecCSFlags(rawValue: 0), &code
         )
         guard copyStatus == errSecSuccess, let code else {
-            log.error("peer pid \(pid): SecCodeCopyGuestWithAttributes failed (\(copyStatus)); allowing under ad-hoc")
-            return lenientAllow(pid: pid)
+            log.error("peer pid \(pid): SecCodeCopyGuestWithAttributes failed (\(copyStatus)); rejected")
+            return false
         }
 
         // Validate the peer's signature is intact.
         let checkStatus = SecCodeCheckValidity(code, SecCSFlags(rawValue: 0), nil)
         if checkStatus != errSecSuccess {
-            log.error("peer pid \(pid): SecCodeCheckValidity failed (\(checkStatus)); allowing under ad-hoc")
-            return lenientAllow(pid: pid)
+            log.error("peer pid \(pid): SecCodeCheckValidity failed (\(checkStatus)); rejected")
+            return false
         }
 
-        // W13: additionally require a pinned identity, e.g.
-        //   let req: SecRequirement = ... anchor apple generic and
-        //     identifier "com.sysinternals.procexpmac" and
-        //     certificate leaf[subject.OU] = "<TEAMID>"
-        //   guard SecCodeCheckValidityWithErrors(code, [], req, nil) == errSecSuccess
-        //   else { return false }
-        log.info("peer pid \(pid): signature valid; accepted")
+        #if DEBUG
+        log.notice("peer pid \(pid): accepting intact ad-hoc signature in DEBUG build")
         return true
+        #else
+        guard let teamIdentifier = ownTeamIdentifier() else {
+            log.fault("could not determine helper Team ID; rejecting pid \(pid)")
+            return false
+        }
+
+        let requirementText = "anchor apple generic and identifier \"\(officialAppIdentifier)\" and certificate leaf[subject.OU] = \"\(teamIdentifier)\""
+        var requirement: SecRequirement?
+        let requirementStatus = SecRequirementCreateWithString(
+            requirementText as CFString,
+            SecCSFlags(rawValue: 0),
+            &requirement
+        )
+        guard requirementStatus == errSecSuccess, let requirement else {
+            log.fault("could not create official peer requirement (\(requirementStatus)); rejecting pid \(pid)")
+            return false
+        }
+
+        let identityStatus = SecCodeCheckValidity(
+            code,
+            SecCSFlags(rawValue: 0),
+            requirement
+        )
+        guard identityStatus == errSecSuccess else {
+            log.error("peer pid \(pid): official identity requirement failed (\(identityStatus)); rejected")
+            return false
+        }
+
+        log.info("peer pid \(pid): official identity requirement passed; accepted")
+        return true
+        #endif
     }
 
-    /// Placeholder for the lenient (ad-hoc) allow decision so the policy is in
-    /// exactly one place and easy to flip to `false` once signing lands.
-    private static func lenientAllow(pid: pid_t) -> Bool {
-        true
+    /// Return the Team ID from this helper's own code signature. The app must
+    /// be signed by the same team, avoiding a duplicated identity constant.
+    private static func ownTeamIdentifier() -> String? {
+        var ownCode: SecCode?
+        guard SecCodeCopySelf(SecCSFlags(rawValue: 0), &ownCode) == errSecSuccess,
+              let ownCode else {
+            return nil
+        }
+
+        var signingInformation: CFDictionary?
+        guard SecCodeCopySigningInformation(
+            ownCode,
+            SecCSFlags(rawValue: 0),
+            &signingInformation
+        ) == errSecSuccess,
+              let information = signingInformation as? [CFString: Any] else {
+            return nil
+        }
+
+        return information[kSecCodeInfoTeamIdentifier] as? String
     }
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# build_release.sh — build a Release ProcexpMac.app and package it as a DMG.
+# build_release.sh — build a Release ProcexpMac.app and optionally package a DMG.
 #
 # Works today with ad-hoc ("Sign to Run Locally") signing. To produce a
 # distributable, notarized build, run Scripts/sign_notarize.sh afterwards with
@@ -8,7 +8,7 @@
 #
 # Output:
 #   build/DerivedData/Build/Products/Release/ProcexpMac.app
-#   build/ProcexpMac.dmg   (with an /Applications symlink for drag-install)
+#   build/ProcexpMac.dmg   (unless PACKAGE_DMG=0)
 #
 set -euo pipefail
 
@@ -21,6 +21,7 @@ PRODUCTS="$DERIVED/Build/Products/Release"
 APP="$PRODUCTS/ProcexpMac.app"
 DMG="$BUILD_DIR/ProcexpMac.dmg"
 STAGE="$BUILD_DIR/dmg-stage"
+PACKAGE_DMG="${PACKAGE_DMG:-1}"
 
 mkdir -p "$BUILD_DIR"
 
@@ -38,6 +39,8 @@ xcodebuild \
     -scheme ProcexpMac \
     -configuration Release \
     -derivedDataPath "$DERIVED" \
+    ARCHS="arm64 x86_64" \
+    ONLY_ACTIVE_ARCH=NO \
     build
 
 if [[ ! -d "$APP" ]]; then
@@ -47,7 +50,16 @@ fi
 echo "==> Built: $APP"
 
 echo "==> Embedding privileged helper (W13)…"
-bash "$REPO_ROOT/Scripts/embed_helper.sh" "$APP"
+HELPER_ARCHS="${HELPER_ARCHS:-arm64 x86_64}" \
+    bash "$REPO_ROOT/Scripts/embed_helper.sh" "$APP"
+
+if [[ "$PACKAGE_DMG" == "0" ]]; then
+    echo ""
+    echo "==> DONE"
+    echo "    App: $APP"
+    echo "    DMG packaging skipped (PACKAGE_DMG=0)."
+    exit 0
+fi
 
 echo "==> Staging DMG contents…"
 rm -rf "$STAGE"

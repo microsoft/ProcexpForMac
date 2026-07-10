@@ -18,6 +18,9 @@ settings:
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGN_STYLE: Manual
     ENABLE_HARDENED_RUNTIME: NO
+  configs:
+    Release:
+      ENABLE_HARDENED_RUNTIME: YES
 
 targets:
   ProcexpMac:
