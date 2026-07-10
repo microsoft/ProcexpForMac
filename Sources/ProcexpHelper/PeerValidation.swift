@@ -94,9 +94,19 @@ enum PeerValidation {
             return nil
         }
 
+        var ownStaticCode: SecStaticCode?
+        guard SecCodeCopyStaticCode(
+            ownCode,
+            SecCSFlags(rawValue: 0),
+            &ownStaticCode
+        ) == errSecSuccess,
+              let ownStaticCode else {
+            return nil
+        }
+
         var signingInformation: CFDictionary?
         guard SecCodeCopySigningInformation(
-            ownCode,
+            ownStaticCode,
             SecCSFlags(rawValue: 0),
             &signingInformation
         ) == errSecSuccess,
