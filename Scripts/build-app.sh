@@ -56,9 +56,18 @@ verify_entitlement() {
     local key="$3"
     local plist
     plist="$(mktemp)"
-    codesign -d --entitlements "$plist" "$path"
+    codesign -d --entitlements :- "$path" >"$plist"
+    if ! plutil -lint "$plist" >/dev/null; then
+        cat "$plist" >&2
+        rm -f "$plist"
+        fail "could not extract $label entitlements"
+    fi
     local value
     value="$(/usr/libexec/PlistBuddy -c "Print :$key" "$plist" 2>/dev/null || true)"
+    if [[ "$value" != "true" ]]; then
+        echo "$label entitlements:" >&2
+        plutil -p "$plist" >&2
+    fi
     rm -f "$plist"
     [[ "$value" == "true" ]] || fail "$label is missing required entitlement $key"
 }
