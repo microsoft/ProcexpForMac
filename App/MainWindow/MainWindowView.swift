@@ -23,7 +23,12 @@ struct MainWindowView: View {
     private let refreshChoices: [TimeInterval] = [0.5, 1, 2, 5]
 
     var body: some View {
-        @Bindable var model = model
+        processActionAlertContent
+    }
+
+    /// Keep the main layout separate from its presentation modifiers so the
+    /// Swift compiler can type-check each layer independently in Release builds.
+    private var mainContent: some View {
         VStack(spacing: 0) {
             toolbar
                 .fixedSize(horizontal: false, vertical: true)
@@ -49,87 +54,107 @@ struct MainWindowView: View {
             Divider()
             statusBar
         }
-        .frame(minWidth: 900, minHeight: 500)
-        .sheet(isPresented: $model.showRunSheet) {
-            RunProcessSheet()
-        }
-        .sheet(isPresented: $model.showSelectColumnsSheet) {
-            SelectColumnsSheet()
-                .environment(model)
-        }
-        .sheet(isPresented: $model.showSaveColumnSetSheet) {
-            SaveColumnSetSheet()
-                .environment(model)
-        }
-        .sheet(isPresented: $model.showOrganizeColumnSetsSheet) {
-            OrganizeColumnSetsSheet()
-                .environment(model)
-        }
-        .background(SpacePauseMonitor {
-            model.togglePause()
-        })
-        .onChange(of: model.focusSearchToken) {
-            searchFocused = true
-        }
-        .onChange(of: model.saveRequestToken) {
-            saveProcessList()
-        }
-        .confirmationDialog(
-            coordinator.pending?.confirmation.title ?? "",
-            isPresented: Binding(
-                get: { coordinator.pending != nil },
-                set: { if !$0 { coordinator.cancel() } }
-            ),
-            presenting: coordinator.pending
-        ) { pending in
-            Button(
-                pending.confirmButtonTitle,
-                role: pending.confirmation.destructive ? .destructive : nil
-            ) {
-                coordinator.confirm(model: model)
+    }
+
+    private var sheetContent: some View {
+        @Bindable var model = model
+        return mainContent
+            .frame(minWidth: 900, minHeight: 500)
+            .sheet(isPresented: $model.showRunSheet) {
+                RunProcessSheet()
             }
-            Button("Cancel", role: .cancel) { coordinator.cancel() }
-        } message: { pending in
-            Text(pending.confirmation.message)
-        }
-        .alert(
-            coordinator.errorTitle,
-            isPresented: Binding(
-                get: { coordinator.errorMessage != nil },
-                set: { if !$0 { coordinator.errorMessage = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) { coordinator.errorMessage = nil }
-        } message: {
-            Text(coordinator.errorMessage ?? "")
-        }
-        .alert(
-            model.targetWindowPickerAlert?.title ?? "Window Picker",
-            isPresented: Binding(
-                get: { model.targetWindowPickerAlert != nil },
-                set: { if !$0 { model.targetWindowPickerAlert = nil } }
-            )
-        ) {
-            if model.targetWindowPickerAlert?.offersAccessibilitySettings == true {
-                Button("Open Accessibility Settings") {
-                    model.openAccessibilitySettingsForTargetPicker()
+            .sheet(isPresented: $model.showSelectColumnsSheet) {
+                SelectColumnsSheet()
+                    .environment(model)
+            }
+            .sheet(isPresented: $model.showSaveColumnSetSheet) {
+                SaveColumnSetSheet()
+                    .environment(model)
+            }
+            .sheet(isPresented: $model.showOrganizeColumnSetsSheet) {
+                OrganizeColumnSetsSheet()
+                    .environment(model)
+            }
+            .background(SpacePauseMonitor {
+                model.togglePause()
+            })
+            .onChange(of: model.focusSearchToken) {
+                searchFocused = true
+            }
+            .onChange(of: model.saveRequestToken) {
+                saveProcessList()
+            }
+    }
+
+    private var actionDialogContent: some View {
+        @Bindable var model = model
+        return sheetContent
+            .confirmationDialog(
+                coordinator.pending?.confirmation.title ?? "",
+                isPresented: Binding(
+                    get: { coordinator.pending != nil },
+                    set: { if !$0 { coordinator.cancel() } }
+                ),
+                presenting: coordinator.pending
+            ) { pending in
+                Button(
+                    pending.confirmButtonTitle,
+                    role: pending.confirmation.destructive ? .destructive : nil
+                ) {
+                    coordinator.confirm(model: model)
                 }
+                Button("Cancel", role: .cancel) { coordinator.cancel() }
+            } message: { pending in
+                Text(pending.confirmation.message)
             }
-            Button("OK", role: .cancel) { model.targetWindowPickerAlert = nil }
-        } message: {
-            Text(model.targetWindowPickerAlert?.message ?? "")
-        }
-        .alert(
-            model.processActionAlert?.title ?? "Process Action",
-            isPresented: Binding(
-                get: { model.processActionAlert != nil },
-                set: { if !$0 { model.processActionAlert = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) { model.processActionAlert = nil }
-        } message: {
-            Text(model.processActionAlert?.message ?? "")
-        }
+            .alert(
+                coordinator.errorTitle,
+                isPresented: Binding(
+                    get: { coordinator.errorMessage != nil },
+                    set: { if !$0 { coordinator.errorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { coordinator.errorMessage = nil }
+            } message: {
+                Text(coordinator.errorMessage ?? "")
+            }
+    }
+
+    private var targetWindowAlertContent: some View {
+        @Bindable var model = model
+        return actionDialogContent
+            .alert(
+                model.targetWindowPickerAlert?.title ?? "Window Picker",
+                isPresented: Binding(
+                    get: { model.targetWindowPickerAlert != nil },
+                    set: { if !$0 { model.targetWindowPickerAlert = nil } }
+                )
+            ) {
+                if model.targetWindowPickerAlert?.offersAccessibilitySettings == true {
+                    Button("Open Accessibility Settings") {
+                        model.openAccessibilitySettingsForTargetPicker()
+                    }
+                }
+                Button("OK", role: .cancel) { model.targetWindowPickerAlert = nil }
+            } message: {
+                Text(model.targetWindowPickerAlert?.message ?? "")
+            }
+    }
+
+    private var processActionAlertContent: some View {
+        @Bindable var model = model
+        return targetWindowAlertContent
+            .alert(
+                model.processActionAlert?.title ?? "Process Action",
+                isPresented: Binding(
+                    get: { model.processActionAlert != nil },
+                    set: { if !$0 { model.processActionAlert = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) { model.processActionAlert = nil }
+            } message: {
+                Text(model.processActionAlert?.message ?? "")
+            }
     }
 
     /// The process tree, shared between the split and non-split layouts.
