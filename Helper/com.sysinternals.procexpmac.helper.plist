@@ -35,12 +35,10 @@
     <key>RunAtLoad</key>
     <false/>
 
-    <!--
-      W13: pin the client (main app) so only it may talk to the daemon. Requires
-      the app to be Developer-ID signed with a Team ID.
-
-      <key>AssociatedBundleIdentifiers</key>
-      <array><string>com.sysinternals.procexpmac</string></array>
-    -->
+    <!-- Pin registration to the Developer-ID-signed main app. -->
+    <key>AssociatedBundleIdentifiers</key>
+    <array>
+        <string>com.sysinternals.procexpmac</string>
+    </array>
 </dict>
 </plist>

@@ -94,14 +94,12 @@ release-relevant summary:
    entitlement that permits `task_for_pid` under the Hardened Runtime), then
    signs the app with `Helper/ProcexpMac.entitlements` (the
    `com.apple.developer.service-management.managed-by-launchd` entitlement).
-4. Flip the pinning keys described in `Helper/README.md`
-   (`AssociatedBundleIdentifiers` in the plist; the hard `SecRequirement` in
-   `PeerValidation.swift`) so the daemon only accepts connections from the
-   signed app.
+4. Keep the pinning keys described in `Helper/README.md` aligned with the
+   official signing identity. `AssociatedBundleIdentifiers` and the Release
+   `SecRequirement` are enabled so the daemon only accepts the signed app.
 
-If the helper is **not** present in the bundle, `sign_notarize.sh` simply skips
-the helper-signing step and signs the app alone — the app then runs on the
-unprivileged `LibprocDataProvider` (see `App/AppModel.swift`).
+The release scripts and ADO verification fail if the helper is absent. A
+privileged-helper release must never silently degrade to an app-only package.
 
 ### SMAppService requires a signed build
 
@@ -120,9 +118,11 @@ the privileged provider.
 
 1. `xcodegen generate` — regenerate `ProcexpMac.xcodeproj` from `project.yml`.
 2. Ensure the app-icon assets exist (runs `Scripts/make_icon.sh` if missing).
-3. `xcodebuild -configuration Release -derivedDataPath build/DerivedData build`.
+3. Build a Universal `arm64` + `x86_64` Release app and helper.
 4. Stage `ProcexpMac.app` + an `/Applications` symlink and `hdiutil create` a
    compressed (`UDZO`) DMG at `build/ProcexpMac.dmg` for drag-install.
+
+Set `PACKAGE_DMG=0` to produce only the app.
 
 Works today with ad-hoc signing; the produced DMG runs locally but Gatekeeper
 will warn on other machines until it is notarized.

@@ -28,11 +28,21 @@ DEST_DIR="$APP/Contents/Library/LaunchDaemons"
 
 [[ -f "$PLIST_SRC" ]] || fail "missing launchd plist: $PLIST_SRC"
 
-echo "==> Building helper (swift build -c release --product ProcexpHelper)…"
-( cd "$REPO_ROOT" && swift build -c release --product ProcexpHelper >/dev/null )
+SWIFT_ARCH_ARGS=()
+for arch in ${HELPER_ARCHS:-}; do
+	SWIFT_ARCH_ARGS+=(--arch "$arch")
+done
+
+if (( ${#SWIFT_ARCH_ARGS[@]} > 0 )); then
+	echo "==> Building Universal helper for: ${HELPER_ARCHS}"
+else
+	echo "==> Building helper for the native architecture"
+fi
+
+( cd "$REPO_ROOT" && swift build -c release --product ProcexpHelper "${SWIFT_ARCH_ARGS[@]}" >/dev/null )
 
 # Resolve the built binary regardless of SwiftPM's arch-specific bin path.
-HELPER_BIN="$(cd "$REPO_ROOT" && swift build -c release --product ProcexpHelper --show-bin-path)/ProcexpHelper"
+HELPER_BIN="$(cd "$REPO_ROOT" && swift build -c release --product ProcexpHelper "${SWIFT_ARCH_ARGS[@]}" --show-bin-path)/ProcexpHelper"
 [[ -f "$HELPER_BIN" ]] || fail "helper binary not found at $HELPER_BIN"
 
 echo "==> Embedding into $DEST_DIR"

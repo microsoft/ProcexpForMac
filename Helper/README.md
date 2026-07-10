@@ -41,8 +41,9 @@ fails; the app detects this and stays on the unprivileged `LibprocDataProvider`
   genuinely privileged bit (real per-thread CPU/state via `task_for_pid`) is new
   code, in `ThreadSampler.swift`.
 - **Peer validation:** `PeerValidation.isTrusted(_:)` resolves the connecting
-  peer's `SecCode` and runs `SecCodeCheckValidity`. It is lenient (logs + allows)
-  under ad-hoc; W13 flips it to a hard `SecRequirement` pin (see below).
+  peer's `SecCode` and runs `SecCodeCheckValidity`. Debug builds accept an
+  intact ad-hoc signature for local testing; Release builds require the
+  official app identifier and Microsoft Developer ID Team ID.
 
 ## W13 — embedding the helper into the app bundle
 
@@ -67,15 +68,15 @@ fails; the app detects this and stays on the unprivileged `LibprocDataProvider`
    - Helper entitlement: `Helper/ProcexpHelper.entitlements`
      (`com.apple.security.cs.debugger` — allows `task_for_pid` under the
      Hardened Runtime).
-   - Enable **Hardened Runtime** on both (currently `ENABLE_HARDENED_RUNTIME: NO`
-     in `project.yml`).
+   - Enable **Hardened Runtime** on both. Release builds enable it in
+     `project.yml`; the helper signing scripts pass `--options runtime`.
 
-5. **Uncomment the pinning keys:**
-   - In the plist: `AssociatedBundleIdentifiers` → `com.sysinternals.procexpmac`.
-   - In `PeerValidation.swift`: build a `SecRequirement` such as
-     `anchor apple generic and identifier "com.sysinternals.procexpmac" and
-      certificate leaf[subject.OU] = "<TEAMID>"`, and change `lenientAllow`
-     to return `false`.
+5. **Keep the production pinning aligned with the signing identity:**
+   - The plist sets `AssociatedBundleIdentifiers` to
+     `com.sysinternals.procexpmac`.
+   - `PeerValidation.swift` reads the helper's Team ID from its own code
+     signature and requires the app to have that same Team ID plus the
+     `com.sysinternals.procexpmac` identifier.
 
 6. **Registration** then works: the app's `Install Privileged Helper…` menu item
    calls `SMAppService.daemon(plistName:).register()`. The user approves the
