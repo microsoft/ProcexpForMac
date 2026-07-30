@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
     <!--
-      launchd property list for the ProcexpMac privileged root helper.
+      launchd property list for the ProcExp privileged root helper.
 
-      Embedded at:  ProcessExplorer.app/Contents/Library/LaunchDaemons/
+      Embedded at:  ProcExp.app/Contents/Library/LaunchDaemons/
                     com.sysinternals.procexpmac.helper.plist
       Registered by SMAppService.daemon(plistName: "com.sysinternals.procexpmac.helper.plist").
 

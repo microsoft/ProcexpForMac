@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# sign_notarize.sh — Developer ID sign, notarize, and staple the Release build.
+# sign_notarize.sh — Developer ID sign, notarize, package, and staple a Release build.
 #
 # This does NOT run under the current ad-hoc signing setup — it requires a real
 # "Developer ID Application" certificate in the login keychain and a stored
@@ -16,8 +16,9 @@
 #      + Hardened Runtime.
 #   2. codesign the app with the managed-by-launchd entitlement + Hardened
 #      Runtime without replacing the helper's nested signature.
-#   3. codesign the DMG.
-#   4. notarytool submit --wait, then stapler staple the DMG (and the app).
+#   3. notarize and staple the app.
+#   4. package that exact app into a DMG.
+#   5. sign, notarize, and staple the DMG.
 #
 set -euo pipefail
 
@@ -26,9 +27,12 @@ cd "$REPO_ROOT"
 
 BUILD_DIR="$REPO_ROOT/build"
 APP="$BUILD_DIR/DerivedData/Build/Products/Release/ProcexpMac.app"
-DMG="$BUILD_DIR/ProcexpMac.dmg"
+APP_ARCHIVE="$BUILD_DIR/ProcExp-app-notarization.zip"
+DMG="$BUILD_DIR/ProcExp.dmg"
+STAGE="$BUILD_DIR/dmg-stage-signed"
 APP_ENTITLEMENTS="$REPO_ROOT/Helper/ProcexpMac.entitlements"
 HELPER_ENTITLEMENTS="$REPO_ROOT/Helper/ProcexpHelper.entitlements"
+APP_BUNDLE_ID="com.sysinternals.procexpmac"
 HELPER_NAME="com.sysinternals.procexpmac.helper"
 HELPER_PATH="$APP/Contents/Library/LaunchDaemons/$HELPER_NAME"
 
@@ -46,9 +50,19 @@ fail() { echo "ERROR: $*" >&2; exit 1; }
     "    --apple-id you@example.com --team-id TEAMID --password APP-SPECIFIC-PW\n" \
     "  then: export KEYCHAIN_PROFILE='procexp-notary'"
 
-[[ -d "$APP" ]] || fail "app not found at $APP — run Scripts/build_release.sh first."
-[[ -f "$DMG" ]] || fail "dmg not found at $DMG — run Scripts/build_release.sh first."
+[[ -d "$APP" ]] || fail \
+    "official app not found at $APP; run PROCEXP_BUILD_FLAVOR=official PACKAGE_DMG=0 bash Scripts/build_release.sh first"
 [[ -f "$APP_ENTITLEMENTS" ]] || fail "missing $APP_ENTITLEMENTS"
+ACTUAL_APP_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c \
+    'Print :CFBundleIdentifier' "$APP/Contents/Info.plist")"
+[[ "$ACTUAL_APP_BUNDLE_ID" == "$APP_BUNDLE_ID" ]] || fail \
+    "refusing to sign bundle id $ACTUAL_APP_BUNDLE_ID; expected $APP_BUNDLE_ID"
+HELPER_PLIST="$APP/Contents/Library/LaunchDaemons/${HELPER_NAME}.plist"
+[[ -f "$HELPER_PLIST" ]] || fail "official helper plist not found at $HELPER_PLIST"
+ACTUAL_ASSOCIATED_ID="$(/usr/libexec/PlistBuddy -c \
+    'Print :AssociatedBundleIdentifiers:0' "$HELPER_PLIST")"
+[[ "$ACTUAL_ASSOCIATED_ID" == "$APP_BUNDLE_ID" ]] || fail \
+    "helper is associated with $ACTUAL_ASSOCIATED_ID; expected $APP_BUNDLE_ID"
 
 CODESIGN_COMMON=(--force --timestamp --options runtime --sign "$DEVELOPER_ID_APP")
 
@@ -77,25 +91,54 @@ spctl --assess --type execute --verbose=4 "$APP" || \
     echo "(spctl assessment will pass only after notarization + stapling.)"
 
 # ---------------------------------------------------------------------------
-# 3. Sign the DMG.
+# 3. Notarize and staple the signed app before it enters the DMG.
+# ---------------------------------------------------------------------------
+echo "==> Packaging app for notarization: $APP_ARCHIVE"
+rm -f "$APP_ARCHIVE"
+ditto -c -k --keepParent "$APP" "$APP_ARCHIVE"
+
+echo "==> Submitting app to the notary service…"
+xcrun notarytool submit "$APP_ARCHIVE" \
+    --keychain-profile "$KEYCHAIN_PROFILE" \
+    --wait
+
+echo "==> Stapling ticket to the app…"
+xcrun stapler staple "$APP"
+xcrun stapler validate "$APP"
+
+# ---------------------------------------------------------------------------
+# 4. Create the DMG from the signed, notarized, stapled app.
+# ---------------------------------------------------------------------------
+echo "==> Creating DMG from the notarized app: $DMG"
+rm -rf "$STAGE"
+mkdir -p "$STAGE"
+ditto "$APP" "$STAGE/ProcExp.app"
+ln -s /Applications "$STAGE/Applications"
+rm -f "$DMG"
+hdiutil create \
+    -volname "Process Explorer" \
+    -srcfolder "$STAGE" \
+    -ov \
+    -fs HFS+ \
+    -format UDZO \
+    "$DMG"
+rm -rf "$STAGE"
+
+# ---------------------------------------------------------------------------
+# 5. Sign, notarize, staple, and verify the DMG.
 # ---------------------------------------------------------------------------
 echo "==> Signing DMG: $DMG"
 codesign --force --timestamp --sign "$DEVELOPER_ID_APP" "$DMG"
 
-# ---------------------------------------------------------------------------
-# 4. Notarize + staple.
-# ---------------------------------------------------------------------------
-echo "==> Submitting to notary service (this waits for the result)…"
+echo "==> Submitting DMG to the notary service…"
 xcrun notarytool submit "$DMG" \
     --keychain-profile "$KEYCHAIN_PROFILE" \
     --wait
 
 echo "==> Stapling ticket to the DMG…"
 xcrun stapler staple "$DMG"
-
-echo "==> Stapling ticket to the app…"
-xcrun stapler staple "$APP" || \
-    echo "(app staple is optional; the DMG staple is what matters for distribution.)"
+codesign --verify --strict --verbose=2 "$DMG"
+xcrun stapler validate "$DMG"
 
 echo ""
 echo "==> DONE — notarized & stapled:"

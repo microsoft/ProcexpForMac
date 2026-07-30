@@ -4,12 +4,11 @@ This directory holds the privileged root daemon design artifacts. The daemon
 **source** lives in `Sources/ProcexpHelper/` (SPM executable target); the
 **client** that talks to it lives in `Sources/ProcexpPrivileged/`.
 
-The helper is **code-complete and compiling**. It is *not* wired into the app
-bundle yet because embedding + registering an `SMAppService` daemon only
-succeeds once the app is **Developer-ID signed** (workstream **W13**). Under the
-current ad-hoc ("Sign to Run Locally") signature, `SMAppService.register()`
-fails; the app detects this and stays on the unprivileged `LibprocDataProvider`
-(see `App/AppModel.swift`).
+The helper is embedded by `Scripts/embed_helper.sh` for release builds and by
+`Scripts/dev_install_helper.sh` for local elevated-path testing. Plain Xcode
+builds omit it. `SMAppService` requires a stable signing identity: production
+uses Developer ID, while the local workflow creates a persistent self-signed
+identity and asks for separate user approval.
 
 ## Architecture
 
@@ -45,11 +44,21 @@ fails; the app detects this and stays on the unprivileged `LibprocDataProvider`
   intact ad-hoc signature for local testing; Release builds require the
   official app identifier and Microsoft Developer ID Team ID.
 
+The two installable flavors use separate identities throughout:
+
+| Flavor | App bundle ID | Helper / launchd / Mach service ID |
+|---|---|---|
+| Development | `com.sysinternals.procexpmac.dev` | `com.sysinternals.procexpmac.dev.helper` |
+| Official | `com.sysinternals.procexpmac` | `com.sysinternals.procexpmac.helper` |
+
+`HelperConstants` chooses the matching service from the running app's bundle
+ID. The development launchd plist passes the same flavor to the standalone
+daemon process.
+
 ## W13 — embedding the helper into the app bundle
 
-1. **Add an Xcode target** for the helper (either a "Command Line Tool" target
-   built from `Sources/ProcexpHelper`, or reference the SPM `ProcexpHelper`
-   product). Product name must be `com.sysinternals.procexpmac.helper`.
+1. **Build the SPM `ProcexpHelper` executable product.** The embedding script
+  renames the output to the helper ID for the selected flavor.
 
 2. **Copy the executable** into the app at build time via a *Copy Files* build
    phase on the app target:
@@ -57,8 +66,10 @@ fails; the app detects this and stays on the unprivileged `LibprocDataProvider`
    - Subpath: `Contents/Library/LaunchDaemons`
    - File: the `com.sysinternals.procexpmac.helper` executable.
 
-3. **Copy the launchd plist** `com.sysinternals.procexpmac.helper.plist`
-   (in this directory) into the same folder:
+3. **Generate the embedded launchd plist** from
+  `com.sysinternals.procexpmac.helper.plist` (in this directory), replacing
+  its identity fields together for development builds, and copy it into the
+  same folder:
    - Destination: **Wrapper**
    - Subpath: `Contents/Library/LaunchDaemons`
 
@@ -95,5 +106,8 @@ fails; the app detects this and stays on the unprivileged `LibprocDataProvider`
 
 ## Testing note
 
-Do **not** attempt to `register()`/run the daemon under ad-hoc signing — it will
-not launch. The whole path is exercised end-to-end only after W13 signing.
+An ad-hoc build can run without the helper but cannot register it. Use
+`Scripts/dev_install_helper.sh` for the persistent self-signed development
+tuple, or pass a Developer ID identity to that script for the official tuple.
+The two launchd labels can coexist and are removed independently by
+`Scripts/dev_uninstall_helper.sh`.

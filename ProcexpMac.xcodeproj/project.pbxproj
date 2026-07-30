@@ -417,7 +417,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Process Explorer";
+				INFOPLIST_KEY_CFBundleDisplayName = "Process Explorer (Dev)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Process Explorer for macOS";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -425,8 +425,9 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.sysinternals.procexpmac;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sysinternals.procexpmac.dev;
 				SDKROOT = macosx;
+				WRAPPER_NAME = "ProcExp (Dev).app";
 			};
 			name = Debug;
 		};
@@ -499,7 +500,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "Process Explorer";
+				INFOPLIST_KEY_CFBundleDisplayName = "Process Explorer (Dev)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Process Explorer for macOS";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -507,8 +508,9 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.sysinternals.procexpmac;
+				PRODUCT_BUNDLE_IDENTIFIER = com.sysinternals.procexpmac.dev;
 				SDKROOT = macosx;
+				WRAPPER_NAME = "ProcExp (Dev).app";
 			};
 			name = Release;
 		};
