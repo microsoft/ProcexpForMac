@@ -17,7 +17,7 @@ import Foundation
 import ProcexpPrivileged
 import os
 
-private let log = Logger(subsystem: "com.sysinternals.procexpmac.helper", category: "main")
+private let log = Logger(subsystem: HelperConstants.machServiceName, category: "main")
 
 /// Accepts and configures incoming XPC connections after peer validation.
 final class HelperListenerDelegate: NSObject, NSXPCListenerDelegate {

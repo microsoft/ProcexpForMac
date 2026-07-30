@@ -55,7 +55,7 @@ xcodebuild -scheme ProcexpMac -configuration Debug build
 The Debug app is written under Xcode DerivedData. On this machine the path is typically:
 
 ```sh
-~/Library/Developer/Xcode/DerivedData/ProcexpMac-czqddcuyalgzfgebjezrhssregtw/Build/Products/Debug/ProcexpMac.app
+~/Library/Developer/Xcode/DerivedData/ProcexpMac-czqddcuyalgzfgebjezrhssregtw/Build/Products/Debug/ProcExp\ \(Dev\).app
 ```
 
 You can also open the generated project in Xcode:
@@ -70,23 +70,36 @@ open ProcexpMac.xcodeproj
 After a Debug build, launch the app with:
 
 ```sh
-open ~/Library/Developer/Xcode/DerivedData/ProcexpMac-czqddcuyalgzfgebjezrhssregtw/Build/Products/Debug/ProcexpMac.app
+open "$HOME/Library/Developer/Xcode/DerivedData/ProcexpMac-czqddcuyalgzfgebjezrhssregtw/Build/Products/Debug/ProcExp (Dev).app"
 ```
 
 If your DerivedData suffix differs, locate the product with:
 
 ```sh
-find ~/Library/Developer/Xcode/DerivedData -path '*/Build/Products/Debug/ProcexpMac.app' -print
+find ~/Library/Developer/Xcode/DerivedData -path '*/Build/Products/Debug/ProcExp (Dev).app' -print
 ```
 
 To relaunch a freshly built app from this workspace:
 
 ```sh
-app="$HOME/Library/Developer/Xcode/DerivedData/ProcexpMac-czqddcuyalgzfgebjezrhssregtw/Build/Products/Debug/ProcexpMac.app"
+app="$HOME/Library/Developer/Xcode/DerivedData/ProcexpMac-czqddcuyalgzfgebjezrhssregtw/Build/Products/Debug/ProcExp (Dev).app"
 pids=$(pgrep -f "$app/Contents/MacOS/ProcexpMac" || true)
 if [[ -n "$pids" ]]; then kill $pids 2>/dev/null || true; fi
 open -n "$app"
 ```
+
+### Bundle identity: development vs. official
+
+Unqualified Xcode and local ad-hoc builds use `ProcExp (Dev).app` with bundle
+ID `com.sysinternals.procexpmac.dev`. Its helper uses the separate launchd and
+Mach service ID `com.sysinternals.procexpmac.dev.helper`. The development app,
+helper approval, preferences, and LaunchServices registration therefore do not
+replace an installed official copy.
+
+The official identities are reserved for an explicit Developer ID build or the
+Azure release pipeline: `ProcExp.app`, `com.sysinternals.procexpmac`, and
+`com.sysinternals.procexpmac.helper`. The build and signing scripts validate the
+entire tuple before signing or publishing it.
 
 ## Validate
 
@@ -146,10 +159,10 @@ bash Scripts/dev_install_helper.sh
 
 This builds a Release app, embeds the helper and its launchd plist at
 `Contents/Library/LaunchDaemons/`, signs everything inside-out with the Hardened
-Runtime and entitlements, installs to `/Applications`, and launches it. Then, in
-the app, choose **ProcexpMac ▸ Install Privileged Helper…** and approve the
-daemon in **System Settings ▸ General ▸ Login Items & Extensions**. After
-approval the app adopts the privileged provider and shows all processes.
+Runtime and entitlements, installs `/Applications/ProcExp.app`, and launches
+it. Then, in the app, choose **ProcexpMac ▸ Install Privileged Helper…** and
+approve the daemon in **System Settings ▸ General ▸ Login Items & Extensions**.
+After approval the app adopts the privileged provider and shows all processes.
 
 ### Testing without a Developer ID certificate (local self-signed)
 
@@ -176,9 +189,10 @@ RESTART_HELPER=1 bash Scripts/dev_install_helper.sh   # after changing helper co
 
 Notes:
 - The script defaults to a **Debug** build signed with the **"ProcexpMac Dev"**
-  self-signed identity. It installs to `/Applications` because `SMAppService`
-  ties the daemon registration to the app's signature and location, so
-  reinstalling the same-identity build keeps the helper registered.
+  self-signed identity. It installs `/Applications/ProcExp (Dev).app` with the
+  `.dev` app and helper identifiers. `SMAppService` ties daemon registration to
+  the app's signature and location, so reinstalling the same-identity build
+  keeps the development helper registered.
 - The app changes take effect on relaunch; the root **helper** keeps running its
   already-loaded binary, so pass `RESTART_HELPER=1` (prompts for sudo) when you
   change the helper's own code.
@@ -190,6 +204,12 @@ Notes:
 ### Verifying and cleaning up
 
 Check whether the daemon is registered and running as root:
+
+```sh
+launchctl print system/com.sysinternals.procexpmac.dev.helper
+```
+
+For an explicit Developer ID install, inspect the official service instead:
 
 ```sh
 launchctl print system/com.sysinternals.procexpmac.helper
@@ -209,6 +229,13 @@ Remove the installed app and unregister the helper:
 bash Scripts/dev_uninstall_helper.sh
 ```
 
+The cleanup script defaults to the development tuple. To remove an explicit
+Developer ID test install instead, run:
+
+```sh
+PROCEXP_LOCAL_FLAVOR=official bash Scripts/dev_uninstall_helper.sh
+```
+
 Remove the throwaway signing keychain when finished:
 
 ```sh
@@ -225,6 +252,13 @@ Build a release DMG:
 
 ```sh
 bash Scripts/build_release.sh
+```
+
+This local ad-hoc command creates `build/ProcExp-Dev.dmg` containing
+`ProcExp (Dev).app`. To prepare the canonical app for Developer ID signing:
+
+```sh
+PROCEXP_BUILD_FLAVOR=official PACKAGE_DMG=0 bash Scripts/build_release.sh
 ```
 
 Sign and notarize a release build after configuring Developer ID credentials:

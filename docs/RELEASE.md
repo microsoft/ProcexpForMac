@@ -1,20 +1,14 @@
 # Release & Notarization — Process Explorer for macOS
 
-This document describes how to produce a distributable, notarized build of
-Process Explorer, including the privileged helper. Two scripts drive the
-process:
-
-- `Scripts/build_release.sh` — builds `Release` and packages a DMG. Works today
-  with ad-hoc signing; produces a locally-runnable (but *not* distributable)
-  artifact.
-- `Scripts/sign_notarize.sh` — Developer ID signs, notarizes, and staples that
-  artifact. Requires a paid Apple Developer account.
+The scripts below provide local build and Developer ID validation.
 
 ## Quick start (once you have a Developer ID)
 
 ```bash
-# 1. Build the Release app + DMG (ad-hoc signed).
-bash Scripts/build_release.sh
+# 1. Build the Release app and optional local-test DMG.
+PROCEXP_VERSION=1.0.0 PROCEXP_BUILD_VERSION=1.0.0 \
+   PROCEXP_BUILD_FLAVOR=official PACKAGE_DMG=0 \
+   bash Scripts/build_release.sh
 
 # 2. Developer ID sign, notarize, and staple.
 export DEVELOPER_ID_APP='Developer ID Application: Jane Doe (AB12CD34EF)'
@@ -22,7 +16,9 @@ export KEYCHAIN_PROFILE='procexp-notary'
 bash Scripts/sign_notarize.sh
 ```
 
-The result is `build/ProcexpMac.dmg`, notarized and stapled, ready to ship.
+`sign_notarize.sh` signs and notarizes the helper and app first, packages that
+exact stapled app as `ProcExp.app`, then signs, notarizes, and staples
+`build/ProcExp.dmg`. Use the governed pipeline artifact for an official release.
 
 ---
 
@@ -67,11 +63,10 @@ Store an app-specific password once so the scripts can submit non-interactively.
 
 ### 3. Hardened Runtime
 
-The Hardened Runtime is required for notarization. `sign_notarize.sh` applies it
-at signing time via `codesign --options runtime`, so it does not need to be
-baked into every dev build. If you prefer it enabled in the project directly,
-set `ENABLE_HARDENED_RUNTIME: YES` in `project.yml` (it is `NO` today so that
-ad-hoc local builds and previews stay friction-free).
+The Hardened Runtime is required for notarization. The Release configuration in
+`project.yml` enables it, and `sign_notarize.sh` also applies
+`codesign --options runtime` when replacing transport signatures with Developer
+ID signatures. Debug builds keep it disabled for local development.
 
 ---
 
@@ -98,6 +93,12 @@ release-relevant summary:
    official signing identity. `AssociatedBundleIdentifiers` and the Release
    `SecRequirement` are enabled so the daemon only accepts the signed app.
 
+Local builds use the isolated app ID `com.sysinternals.procexpmac.dev` and
+helper ID `com.sysinternals.procexpmac.dev.helper`. `embed_helper.sh` derives
+their launchd plist from the canonical production plist, replacing the label,
+program, Mach service, and associated app ID as one validated tuple. Official
+builds retain the identifiers above.
+
 The release scripts and ADO verification fail if the helper is absent. A
 privileged-helper release must never silently degrade to an app-only package.
 
@@ -119,25 +120,32 @@ the privileged provider.
 1. `xcodegen generate` — regenerate `ProcexpMac.xcodeproj` from `project.yml`.
 2. Ensure the app-icon assets exist (runs `Scripts/make_icon.sh` if missing).
 3. Build a Universal `arm64` + `x86_64` Release app and helper.
-4. Stage `ProcexpMac.app` + an `/Applications` symlink and `hdiutil create` a
-   compressed (`UDZO`) DMG at `build/ProcexpMac.dmg` for drag-install.
+4. Apply inside-out ad-hoc transport signatures to the completed local bundle.
+5. When `PACKAGE_DMG` is not `0`, stage the app with an `/Applications` symlink
+   and create a local-test DMG.
 
 Set `PACKAGE_DMG=0` to produce only the app.
 
-Works today with ad-hoc signing; the produced DMG runs locally but Gatekeeper
-will warn on other machines until it is notarized.
+The default development flavor produces `ProcExp (Dev).app` and
+`build/ProcExp-Dev.dmg`, using the `.dev` app and helper identifiers. Set
+`PROCEXP_BUILD_FLAVOR=official` only when preparing input for Developer ID
+signing. The official Azure builder sets that flavor with `PACKAGE_DMG=0`; the
+shared signing template creates the distribution DMG only after notarization.
 
 ### `Scripts/sign_notarize.sh`
 
-Guarded on `DEVELOPER_ID_APP` and `KEYCHAIN_PROFILE`. Then:
+Guarded on `DEVELOPER_ID_APP`, `KEYCHAIN_PROFILE`, and the canonical app/helper
+identity tuple. Then:
 
 1. `codesign` the embedded helper (if present) with the debugger entitlement +
    Hardened Runtime.
-2. `codesign --deep` the app with the managed-by-launchd entitlement + Hardened
-   Runtime; verify with `codesign --verify` and `spctl`.
-3. `codesign` the DMG.
-4. `xcrun notarytool submit --wait` the DMG, then `xcrun stapler staple` the DMG
-   (and app).
+2. Sign the app without `--deep`, preserving the helper's distinct signature
+   and entitlement, then verify the nested bundle.
+3. Submit a zip of the signed app to `notarytool`, then staple and validate the
+   app.
+4. Create `build/ProcExp.dmg` from that exact app as `ProcExp.app` plus the
+   `/Applications` symlink.
+5. Sign, notarize, staple, and validate the DMG.
 
 ---
 
@@ -165,11 +173,11 @@ On a clean machine (or after removing the quarantine bit locally):
 
 ```bash
 # Gatekeeper assessment of the DMG.
-spctl --assess --type open --context context:primary-signature -v build/ProcexpMac.dmg
+spctl --assess --type open --context context:primary-signature -v build/ProcExp.dmg
 
 # Signature + notarization of the app inside.
-codesign --verify --deep --strict --verbose=2 /Applications/ProcexpMac.app
-xcrun stapler validate /Applications/ProcexpMac.app
+codesign --verify --deep --strict --verbose=2 /Applications/ProcExp.app
+xcrun stapler validate /Applications/ProcExp.app
 ```
 
 All three should report success once notarization + stapling have completed.

@@ -8,11 +8,26 @@
 set -euo pipefail
 
 INSTALL_DIR="${INSTALL_DIR:-/Applications}"
-APP_DEST="$INSTALL_DIR/ProcexpMac.app"
-HELPER_NAME="com.sysinternals.procexpmac.helper"
+LOCAL_FLAVOR="${PROCEXP_LOCAL_FLAVOR:-development}"
+case "$LOCAL_FLAVOR" in
+    development)
+        APP_DEST="$INSTALL_DIR/ProcExp (Dev).app"
+        HELPER_NAME="com.sysinternals.procexpmac.dev.helper"
+        ;;
+    official)
+        APP_DEST="$INSTALL_DIR/ProcExp.app"
+        HELPER_NAME="com.sysinternals.procexpmac.helper"
+        ;;
+    *)
+        echo "ERROR: PROCEXP_LOCAL_FLAVOR must be development or official" >&2
+        exit 1
+        ;;
+esac
 
 echo "==> Quitting the app if running…"
-pkill -x ProcexpMac 2>/dev/null || true
+APP_EXECUTABLE_REGEX="$(printf '%s' "$APP_DEST/Contents/MacOS/ProcexpMac" \
+    | sed 's/[][\\.^$*+?(){}|]/\\&/g')"
+pkill -f "$APP_EXECUTABLE_REGEX" 2>/dev/null || true
 
 echo "==> Attempting to boot out the daemon (needs sudo; ignore if absent)…"
 sudo launchctl bootout "system/$HELPER_NAME" 2>/dev/null \

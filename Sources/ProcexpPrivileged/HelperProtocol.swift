@@ -19,17 +19,40 @@ import Foundation
 
 /// Identifiers shared by the client and the helper daemon.
 public enum HelperConstants {
+    public static let officialAppBundleID = "com.sysinternals.procexpmac"
+    public static let developmentAppBundleID = "com.sysinternals.procexpmac.dev"
+
+    public static let officialHelperBundleID = "com.sysinternals.procexpmac.helper"
+    public static let developmentHelperBundleID = "com.sysinternals.procexpmac.dev.helper"
+
+    private static var usesDevelopmentIdentity: Bool {
+        switch Bundle.main.bundleIdentifier {
+        case developmentAppBundleID, developmentHelperBundleID:
+            return true
+        case officialAppBundleID, officialHelperBundleID:
+            return false
+        default:
+            return ProcessInfo.processInfo.environment["PROCEXP_HELPER_FLAVOR"] == "development"
+        }
+    }
+
     /// The mach service the daemon registers and the client connects to. Must
     /// match the `MachServices` key in the embedded launchd plist.
-    public static let machServiceName = "com.sysinternals.procexpmac.helper"
+    public static var machServiceName: String {
+        usesDevelopmentIdentity ? developmentHelperBundleID : officialHelperBundleID
+    }
 
     /// The launchd property-list file name under
     /// `Contents/Library/LaunchDaemons/` used by `SMAppService.daemon(plistName:)`.
-    public static let daemonPlistName = "com.sysinternals.procexpmac.helper.plist"
+    public static var daemonPlistName: String {
+        "\(machServiceName).plist"
+    }
 
     /// Bundle identifier the helper's code signature is expected to carry once
     /// Developer-ID signed (W13). Used by the peer-validation requirement.
-    public static let expectedHelperBundleID = "com.sysinternals.procexpmac.helper"
+    public static var expectedHelperBundleID: String {
+        machServiceName
+    }
 }
 
 /// The privileged operations the root daemon exposes over XPC.

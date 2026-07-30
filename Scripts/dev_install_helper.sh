@@ -24,7 +24,7 @@
 # daemon — pass RESTART_HELPER=1 (prompts for sudo) to do that.
 #
 # Env:
-#   CONFIGURATION               Debug (default) or Release
+#   CONFIGURATION               Debug or Release (defaults by signing flavor)
 #   DEV_SIGN_IDENTITY           signing identity (default: "ProcexpMac Dev")
 #   DEV_SIGN_KEYCHAIN           keychain holding it (default: procexp-dev.keychain-db)
 #   DEV_SIGN_KEYCHAIN_PASSWORD  its password (default: "procexp-dev")
@@ -36,7 +36,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-CONFIGURATION="${CONFIGURATION:-Debug}"
+CONFIGURATION="${CONFIGURATION:-}"
 IDENTITY="${DEV_SIGN_IDENTITY:-ProcexpMac Dev}"
 INSTALL_DIR="${INSTALL_DIR:-/Applications}"
 DEFAULT_KEYCHAIN="$HOME/Library/Keychains/procexp-dev.keychain-db"
@@ -45,11 +45,8 @@ SIGN_KEYCHAIN_PASSWORD="${DEV_SIGN_KEYCHAIN_PASSWORD:-procexp-dev}"
 RESTART_HELPER="${RESTART_HELPER:-0}"
 BUILD_DIR="$REPO_ROOT/build"
 DERIVED="$BUILD_DIR/DerivedData"
-APP_SRC="$DERIVED/Build/Products/$CONFIGURATION/ProcexpMac.app"
-APP_DEST="$INSTALL_DIR/ProcexpMac.app"
 APP_ENTITLEMENTS="$REPO_ROOT/Helper/ProcexpMac.entitlements"
 HELPER_ENTITLEMENTS="$REPO_ROOT/Helper/ProcexpHelper.entitlements"
-HELPER_NAME="com.sysinternals.procexpmac.helper"
 
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
@@ -98,6 +95,28 @@ if [[ "$IDENTITY" == *"Developer ID"* ]]; then
     IS_DEVELOPER_ID=1
 fi
 
+if [[ "$IS_DEVELOPER_ID" -eq 1 ]]; then
+    CONFIGURATION="${CONFIGURATION:-Release}"
+    APP_BUNDLE_ID="com.sysinternals.procexpmac"
+    APP_DISPLAY_NAME="Process Explorer"
+    APP_WRAPPER_NAME="ProcexpMac.app"
+    APP_INSTALL_NAME="ProcExp.app"
+    HELPER_NAME="com.sysinternals.procexpmac.helper"
+    HELPER_FLAVOR="official"
+    HELPER_CONFIGURATION="release"
+else
+    CONFIGURATION="${CONFIGURATION:-Debug}"
+    APP_BUNDLE_ID="com.sysinternals.procexpmac.dev"
+    APP_DISPLAY_NAME="Process Explorer (Dev)"
+    APP_WRAPPER_NAME="ProcExp (Dev).app"
+    APP_INSTALL_NAME="$APP_WRAPPER_NAME"
+    HELPER_NAME="com.sysinternals.procexpmac.dev.helper"
+    HELPER_FLAVOR="development"
+    HELPER_CONFIGURATION="debug"
+fi
+APP_SRC="$DERIVED/Build/Products/$CONFIGURATION/$APP_WRAPPER_NAME"
+APP_DEST="$INSTALL_DIR/$APP_INSTALL_NAME"
+
 echo "==> Using signing identity: $IDENTITY"
 if [[ "$IS_DEVELOPER_ID" -eq 0 ]]; then
     cat <<'NOTE'
@@ -117,13 +136,21 @@ xcodegen generate >/dev/null
 
 echo "==> Building $CONFIGURATION app…"
 xcodebuild -project ProcexpMac.xcodeproj -scheme ProcexpMac \
-    -configuration "$CONFIGURATION" -derivedDataPath "$DERIVED" build >/dev/null
+    -configuration "$CONFIGURATION" -derivedDataPath "$DERIVED" \
+    "PRODUCT_BUNDLE_IDENTIFIER=$APP_BUNDLE_ID" \
+    "INFOPLIST_KEY_CFBundleDisplayName=$APP_DISPLAY_NAME" \
+    "WRAPPER_NAME=$APP_WRAPPER_NAME" \
+    build >/dev/null
 [[ -d "$APP_SRC" ]] || fail "expected app not found at $APP_SRC"
 
 # ---------------------------------------------------------------------------
 # 2. Embed the helper + plist at the production location.
 # ---------------------------------------------------------------------------
-bash "$REPO_ROOT/Scripts/embed_helper.sh" "$APP_SRC"
+PROCEXP_HELPER_FLAVOR="$HELPER_FLAVOR" \
+PROCEXP_APP_BUNDLE_ID="$APP_BUNDLE_ID" \
+PROCEXP_HELPER_NAME="$HELPER_NAME" \
+HELPER_CONFIGURATION="$HELPER_CONFIGURATION" \
+    bash "$REPO_ROOT/Scripts/embed_helper.sh" "$APP_SRC"
 HELPER_PATH="$APP_SRC/Contents/Library/LaunchDaemons/$HELPER_NAME"
 
 # ---------------------------------------------------------------------------
@@ -185,12 +212,23 @@ echo "==> Verifying signature…"
 codesign --verify --strict --verbose=2 "$APP_SRC" || \
     echo "(verification warnings above are expected for self-signed builds.)"
 
+ACTUAL_APP_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c \
+    'Print :CFBundleIdentifier' "$APP_SRC/Contents/Info.plist")"
+[[ "$ACTUAL_APP_BUNDLE_ID" == "$APP_BUNDLE_ID" ]] || fail \
+    "app bundle id is $ACTUAL_APP_BUNDLE_ID; expected $APP_BUNDLE_ID"
+ACTUAL_HELPER_ID="$(codesign -d --verbose=4 "$HELPER_PATH" 2>&1 \
+    | sed -n 's/^Identifier=//p' | head -1)"
+[[ "$ACTUAL_HELPER_ID" == "$HELPER_NAME" ]] || fail \
+    "helper signed identifier is $ACTUAL_HELPER_ID; expected $HELPER_NAME"
+
 # ---------------------------------------------------------------------------
 # 4. Install to a stable location and launch.
 # ---------------------------------------------------------------------------
 echo "==> Installing to $APP_DEST"
 # Best-effort: quit any running copy, then swap in the new build.
-if pgrep -x ProcexpMac >/dev/null; then pkill -x ProcexpMac || true; fi
+APP_EXECUTABLE_REGEX="$(printf '%s' "$APP_DEST/Contents/MacOS/ProcexpMac" \
+    | sed 's/[][\\.^$*+?(){}|]/\\&/g')"
+pkill -f "$APP_EXECUTABLE_REGEX" 2>/dev/null || true
 rm -rf "$APP_DEST"
 cp -R "$APP_SRC" "$APP_DEST"
 xattr -dr com.apple.quarantine "$APP_DEST" 2>/dev/null || true
@@ -221,6 +259,7 @@ cat <<EOF
     Installed: $APP_DEST
     Config:    $CONFIGURATION
     Identity:  $IDENTITY
+    Bundle ID: $APP_BUNDLE_ID
     Helper:    $HELPER_STATE
 
 First-time only: choose "Install Privileged Helper…" in the app, then approve it
@@ -233,6 +272,6 @@ Inspect daemon status:
   launchctl print system/$HELPER_NAME 2>/dev/null || echo "not registered"
 
 Clean up:
-  bash Scripts/dev_uninstall_helper.sh
+    PROCEXP_LOCAL_FLAVOR=$HELPER_FLAVOR bash Scripts/dev_uninstall_helper.sh
 EOF
 

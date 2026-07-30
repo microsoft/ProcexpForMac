@@ -17,10 +17,10 @@ import os
 
 enum PeerValidation {
 
-    private static let officialAppIdentifier = "com.sysinternals.procexpmac"
+    private static let officialAppIdentifier = HelperConstants.officialAppBundleID
 
     private static let log = Logger(
-        subsystem: "com.sysinternals.procexpmac.helper",
+        subsystem: HelperConstants.machServiceName,
         category: "peer"
     )
 
