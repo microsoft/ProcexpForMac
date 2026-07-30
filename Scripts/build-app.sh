@@ -14,7 +14,6 @@ OUTPUT_APP="$REPO_ROOT/.build/$APP_NAME"
 APP_EXECUTABLE="$OUTPUT_APP/Contents/MacOS/ProcexpMac"
 HELPER_NAME="com.sysinternals.procexpmac.helper"
 HELPER="$OUTPUT_APP/Contents/Library/LaunchDaemons/$HELPER_NAME"
-HELPER_PLIST_SOURCE="$REPO_ROOT/Helper/$HELPER_NAME.plist"
 HELPER_PLIST="$OUTPUT_APP/Contents/Library/LaunchDaemons/$HELPER_NAME.plist"
 APP_ENTITLEMENTS="$REPO_ROOT/Helper/ProcexpMac.entitlements"
 HELPER_ENTITLEMENTS="$REPO_ROOT/Helper/ProcexpHelper.entitlements"
@@ -61,8 +60,6 @@ ditto "$SOURCE_APP" "$OUTPUT_APP"
 [[ -f "$APP_EXECUTABLE" ]] || fail "app executable not found: $APP_EXECUTABLE"
 [[ -f "$HELPER" ]] || fail "embedded helper not found: $HELPER"
 [[ -f "$HELPER_PLIST" ]] || fail "embedded helper plist not found: $HELPER_PLIST"
-cmp -s "$HELPER_PLIST_SOURCE" "$HELPER_PLIST" || fail \
-    "embedded helper plist differs from $HELPER_PLIST_SOURCE"
 
 plist_value() {
     /usr/libexec/PlistBuddy -c "Print :$2" "$1" 2>/dev/null || true
@@ -95,6 +92,10 @@ verify_value "helper MachServices name" \
     "$(plist_value "$HELPER_PLIST" "MachServices:$HELPER_NAME")" "true"
 verify_value "helper AssociatedBundleIdentifiers" \
     "$(plist_value "$HELPER_PLIST" "AssociatedBundleIdentifiers:0")" "$APP_BUNDLE_ID"
+verify_value "helper RunAtLoad" \
+    "$(plist_value "$HELPER_PLIST" RunAtLoad)" "false"
+verify_value "helper development environment" \
+    "$(plist_value "$HELPER_PLIST" "EnvironmentVariables:PROCEXP_HELPER_FLAVOR")" ""
 
 grep -Fq "public static let officialAppBundleID = \"$APP_BUNDLE_ID\"" \
     "$REPO_ROOT/Sources/ProcexpPrivileged/HelperProtocol.swift" || fail \
