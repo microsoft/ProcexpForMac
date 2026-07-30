@@ -12,6 +12,7 @@
 //
 
 import Foundation
+import ProcexpPrivileged
 import Security
 import os
 
