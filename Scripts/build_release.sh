@@ -109,7 +109,7 @@ HELPER_ARCHS="${HELPER_ARCHS:-arm64 x86_64}" \
 
 HELPER_PATH="$APP/Contents/Library/LaunchDaemons/$HELPER_NAME"
 echo "==> Applying inside-out ad-hoc transport signatures…"
-codesign --force --sign - "$HELPER_PATH"
+codesign --force --sign - --identifier "$HELPER_NAME" "$HELPER_PATH"
 codesign --force --sign - \
     --requirements "=designated => identifier \"$APP_BUNDLE_ID\"" \
     "$APP"
