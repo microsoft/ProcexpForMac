@@ -73,6 +73,7 @@ CODESIGN_COMMON=(--force --timestamp --options runtime --sign "$DEVELOPER_ID_APP
 echo "==> Signing embedded helper: $HELPER_PATH"
 [[ -f "$HELPER_ENTITLEMENTS" ]] || fail "missing $HELPER_ENTITLEMENTS"
 codesign "${CODESIGN_COMMON[@]}" \
+    --identifier "$HELPER_NAME" \
     --entitlements "$HELPER_ENTITLEMENTS" \
     "$HELPER_PATH"
 

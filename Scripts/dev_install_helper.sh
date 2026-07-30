@@ -184,7 +184,8 @@ while IFS= read -r -d '' item; do
 done < <(find "$APP_SRC/Contents/MacOS" -type f -name "*.dylib" -print0)
 
 echo "==> Signing embedded helper (with debugger entitlement)…"
-"${SIGN[@]}" --entitlements "$HELPER_ENTITLEMENTS" "$HELPER_PATH"
+"${SIGN[@]}" --identifier "$HELPER_NAME" \
+    --entitlements "$HELPER_ENTITLEMENTS" "$HELPER_PATH"
 
 echo "==> Signing app bundle…"
 if [[ "$IS_DEVELOPER_ID" -eq 1 ]]; then

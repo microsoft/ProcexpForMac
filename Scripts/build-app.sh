@@ -154,6 +154,7 @@ verify_architectures "helper" "$HELPER"
 
 echo "==> Applying inside-out ad-hoc transport signatures"
 codesign --force --options runtime --sign - \
+    --identifier "$HELPER_NAME" \
     --entitlements "$HELPER_ENTITLEMENTS" \
     "$HELPER"
 codesign --force --options runtime --sign - \
