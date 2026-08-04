@@ -74,8 +74,10 @@ daemon process.
    - Subpath: `Contents/Library/LaunchDaemons`
 
 4. **Sign both** with the same Developer-ID Team:
-   - App entitlement: `Helper/ProcexpMac.entitlements`
-     (`com.apple.developer.service-management.managed-by-launchd`).
+   - Sign the app without entitlements. `SMAppService.daemon` does not require
+     an app entitlement; adding the restricted
+     `com.apple.developer.service-management.managed-by-launchd` entitlement
+     without a matching provisioning profile prevents the app from launching.
    - Helper entitlement: `Helper/ProcexpHelper.entitlements`
      (`com.apple.security.cs.debugger` — allows `task_for_pid` under the
      Hardened Runtime).
@@ -102,7 +104,6 @@ daemon process.
 |---|---|
 | `com.sysinternals.procexpmac.helper.plist` | launchd plist embedded under `Contents/Library/LaunchDaemons/`. |
 | `ProcexpHelper.entitlements` | Helper signing entitlements (debugger → `task_for_pid`). |
-| `ProcexpMac.entitlements` | App signing entitlement (`managed-by-launchd`). |
 
 ## Testing note
 
