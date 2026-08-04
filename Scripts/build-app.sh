@@ -15,7 +15,6 @@ APP_EXECUTABLE="$OUTPUT_APP/Contents/MacOS/ProcexpMac"
 HELPER_NAME="com.sysinternals.procexpmac.helper"
 HELPER="$OUTPUT_APP/Contents/Library/LaunchDaemons/$HELPER_NAME"
 HELPER_PLIST="$OUTPUT_APP/Contents/Library/LaunchDaemons/$HELPER_NAME.plist"
-APP_ENTITLEMENTS="$REPO_ROOT/Helper/ProcexpMac.entitlements"
 HELPER_ENTITLEMENTS="$REPO_ROOT/Helper/ProcexpHelper.entitlements"
 REQUIRED_ARCHITECTURES=(arm64 x86_64)
 VERSION="${PROCEXP_VERSION:-0.1}"
@@ -140,6 +139,23 @@ verify_entitlement() {
     [[ "$value" == "true" ]] || fail "$label is missing required entitlement $key"
 }
 
+verify_entitlement_absent() {
+    local label="$1"
+    local path="$2"
+    local key="$3"
+    local plist
+    plist="$(mktemp)"
+    codesign -d --entitlements :- "$path" >"$plist"
+    if [[ ! -s "$plist" ]]; then
+        rm -f "$plist"
+        return 0
+    fi
+    local value
+    value="$(/usr/libexec/PlistBuddy -c "Print :$key" "$plist" 2>/dev/null || true)"
+    rm -f "$plist"
+    [[ -z "$value" ]] || fail "$label contains forbidden entitlement $key"
+}
+
 verify_signed_identifier() {
     local label="$1"
     local path="$2"
@@ -158,13 +174,12 @@ codesign --force --options runtime --sign - \
     --entitlements "$HELPER_ENTITLEMENTS" \
     "$HELPER"
 codesign --force --options runtime --sign - \
-    --entitlements "$APP_ENTITLEMENTS" \
     "$OUTPUT_APP"
 
 codesign --verify --deep --strict --verbose=2 "$OUTPUT_APP"
 verify_signed_identifier "app" "$OUTPUT_APP" "$APP_BUNDLE_ID"
 verify_signed_identifier "helper" "$HELPER" "$HELPER_NAME"
-verify_entitlement "app" "$OUTPUT_APP" \
+verify_entitlement_absent "app" "$OUTPUT_APP" \
     "com.apple.developer.service-management.managed-by-launchd"
 verify_entitlement "helper" "$HELPER" \
     "com.apple.security.cs.debugger"

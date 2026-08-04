@@ -14,8 +14,8 @@
 # Steps:
 #   1. codesign the embedded helper (if present) with the debugger entitlement
 #      + Hardened Runtime.
-#   2. codesign the app with the managed-by-launchd entitlement + Hardened
-#      Runtime without replacing the helper's nested signature.
+#   2. codesign the entitlement-free app with Hardened Runtime without
+#      replacing the helper's nested signature.
 #   3. notarize and staple the app.
 #   4. package that exact app into a DMG.
 #   5. sign, notarize, and staple the DMG.
@@ -30,7 +30,6 @@ APP="$BUILD_DIR/DerivedData/Build/Products/Release/ProcexpMac.app"
 APP_ARCHIVE="$BUILD_DIR/ProcExp-app-notarization.zip"
 DMG="$BUILD_DIR/ProcExp.dmg"
 STAGE="$BUILD_DIR/dmg-stage-signed"
-APP_ENTITLEMENTS="$REPO_ROOT/Helper/ProcexpMac.entitlements"
 HELPER_ENTITLEMENTS="$REPO_ROOT/Helper/ProcexpHelper.entitlements"
 APP_BUNDLE_ID="com.sysinternals.procexpmac"
 HELPER_NAME="com.sysinternals.procexpmac.helper"
@@ -52,7 +51,6 @@ fail() { echo "ERROR: $*" >&2; exit 1; }
 
 [[ -d "$APP" ]] || fail \
     "official app not found at $APP; run PROCEXP_BUILD_FLAVOR=official PACKAGE_DMG=0 bash Scripts/build_release.sh first"
-[[ -f "$APP_ENTITLEMENTS" ]] || fail "missing $APP_ENTITLEMENTS"
 ACTUAL_APP_BUNDLE_ID="$(/usr/libexec/PlistBuddy -c \
     'Print :CFBundleIdentifier' "$APP/Contents/Info.plist")"
 [[ "$ACTUAL_APP_BUNDLE_ID" == "$APP_BUNDLE_ID" ]] || fail \
@@ -83,7 +81,6 @@ codesign "${CODESIGN_COMMON[@]}" \
 # ---------------------------------------------------------------------------
 echo "==> Signing app: $APP"
 codesign "${CODESIGN_COMMON[@]}" \
-    --entitlements "$APP_ENTITLEMENTS" \
     "$APP"
 
 echo "==> Verifying app signature…"

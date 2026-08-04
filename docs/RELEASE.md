@@ -87,8 +87,8 @@ release-relevant summary:
 3. `sign_notarize.sh` signs the helper **first** (inside-out order) with
    `Helper/ProcexpHelper.entitlements` (the `com.apple.security.cs.debugger`
    entitlement that permits `task_for_pid` under the Hardened Runtime), then
-   signs the app with `Helper/ProcexpMac.entitlements` (the
-   `com.apple.developer.service-management.managed-by-launchd` entitlement).
+   signs the main app without entitlements. `SMAppService.daemon` registration
+   does not require a main-app entitlement.
 4. Keep the pinning keys described in `Helper/README.md` aligned with the
    official signing identity. `AssociatedBundleIdentifiers` and the Release
    `SecRequirement` are enabled so the daemon only accepts the signed app.

@@ -45,7 +45,6 @@ SIGN_KEYCHAIN_PASSWORD="${DEV_SIGN_KEYCHAIN_PASSWORD:-procexp-dev}"
 RESTART_HELPER="${RESTART_HELPER:-0}"
 BUILD_DIR="$REPO_ROOT/build"
 DERIVED="$BUILD_DIR/DerivedData"
-APP_ENTITLEMENTS="$REPO_ROOT/Helper/ProcexpMac.entitlements"
 HELPER_ENTITLEMENTS="$REPO_ROOT/Helper/ProcexpHelper.entitlements"
 
 fail() { echo "ERROR: $*" >&2; exit 1; }
@@ -189,8 +188,8 @@ echo "==> Signing embedded helper (with debugger entitlement)…"
 
 echo "==> Signing app bundle…"
 if [[ "$IS_DEVELOPER_ID" -eq 1 ]]; then
-    # Developer ID: the restricted managed-by-launchd entitlement + validation on.
-    "${SIGN[@]}" --entitlements "$APP_ENTITLEMENTS" "$APP_SRC"
+    # Developer ID: entitlement-free app with library validation enabled.
+    "${SIGN[@]}" "$APP_SRC"
 else
     # Self-signed: disable library validation so the Debug side dylibs load, and
     # omit the restricted com.apple.developer.* entitlement (which blocks launch).
